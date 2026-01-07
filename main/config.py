@@ -20,7 +20,7 @@ BASE_DATASET_PATH = "../../datasets/"
 # Hyperparameters
 MODEL = "GNN"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
-EPOCHS = 1
+EPOCHS = 10
 LEARNING_RATE = 0.001
 BATCH_SIZE = 4
 
@@ -36,7 +36,7 @@ USE_LAYER_NORM = True
 # Loss Hyperparameters
 LAMBDA_WARP = 1.0      # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.1    # Weight for Smoothness
-LAMBDA_PIN = 10.0      # Weight for Pinned Nodes (Pole)
+LAMBDA_PIN = 50.0      # Weight for Pinned Nodes (Pole)
 
 # Optimizer
 OPTIMIZER = 'Adam'          # Options: 'Adam', 'SGD', 'RMSprop'

@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
 import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config as cfg
 from dataset_helpers.dataset import FlagWindDataset
 
@@ -24,7 +27,7 @@ def integrate_semi_implicit_euler(pos, vel, accel, dt):
     new_pos = pos + new_vel * dt
     return new_pos, new_vel
 
-def validate_rollout(dataset, model_ver, run_index=0):
+def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"🎥 Starting Validation Rollout for Run {run_index} on {device}...")
     
@@ -113,15 +116,15 @@ def validate_rollout(dataset, model_ver, run_index=0):
     predictions = np.array(predictions)
     
     print("✅ Rollout Complete. Generating Animation...")
-    create_comparison_video(gt_flags[:, :, :3], predictions, model_ver, run_index)
+    create_comparison_video(gt_flags[:, :, :3], predictions, model_ver, run_index, sub_dir=sub_dir)
 
-def create_comparison_video(ground_truth, prediction, model_ver, run_index):
+def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_dir=None):
     """Creates a side-by-side 3D animation."""
     fig = plt.figure(figsize=(12, 6))
     ax1 = fig.add_subplot(121, projection='3d')
     ax2 = fig.add_subplot(122, projection='3d')
     
-    ax1.set_title(f"Ground Truth (Run {run_index})")
+    ax1.set_title(f"Ground Truth (Run {run_index+1})")
     ax2.set_title("GNN Prediction (Rollout)")
 
     def setup_ax(ax):
@@ -152,8 +155,12 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index):
     
     # Save
     save_dir = os.path.join(cfg.DATASET_DIR, "models", model_ver)
+    
+    if sub_dir:
+        save_dir = os.path.join(save_dir, sub_dir)
+    
     os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, f"validation_run_{run_index}.mp4")
+    save_path = os.path.join(save_dir, f"validation_run_{run_index+1}.mp4")
     
     try:
         ani.save(save_path, writer='ffmpeg', fps=20)
@@ -163,8 +170,6 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index):
         ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=20)
         print(f"🎬 GIF saved to: {save_path.replace('.mp4', '.gif')}")
 
-if __name__ == "__main__":
-    
-    # 1. Load Dataset (Need stats for Denormalization)
+if __name__ == "__main__":    
     train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO) 
-    validate_rollout(dataset=test, model_ver="007", run_index=0)
+    validate_rollout(dataset=train, model_ver="010", run_index=2, sub_dir="temp")

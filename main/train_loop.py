@@ -6,7 +6,8 @@ import numpy as np
 from tqdm import tqdm
 
 import config as cfg
-from validateVis import validate_rollout
+from validate.validateVis import validate_rollout
+from validate.validateMetric import validate_metrics
 
 def get_next_version_dir(base_dir):
     """
@@ -262,10 +263,18 @@ def trainModel(train_set, test_set, device):
     print(f"Found {len(unique_test_runs)} unique runs in Test Set: {unique_test_runs}")
 
     # 2. Iterate over Unique Runs only
+    
+    
+    
     for run_idx in unique_test_runs:
         validate_rollout(
             dataset=test_set, 
             model_ver=model_ver, 
+            run_index=run_idx
+        )
+        validate_metrics(
+            dataset=test_set,
+            model_ver=model_ver,
             run_index=run_idx
         )
     
