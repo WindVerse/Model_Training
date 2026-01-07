@@ -2,10 +2,12 @@ import os
 import torch
 
 # Dataset Properties
-DATASET_VERSION = 0
+DATASET_VERSION = 6
 TARGET_TYPE = "accelerations"                    # displacements, velocity_differences, accelerations
 EXIST_TOPOLOGY = True
-ITERATION_COUNT = 5
+TRAIN_RATIO = 0.8
+ITERATION_COUNT = 100
+FPS = 10
 MAX_FRAMES = 300
 HEIGHT = 20
 WIDTH = 30
@@ -62,6 +64,8 @@ FLAG_DIR = os.path.join(DATASET_DIR, "flags")
 WIND_DIR = os.path.join(DATASET_DIR, "winds")
 TARGET_DIR = os.path.join(DATASET_DIR, "targets", TARGET_TYPE)
 TOPOLOGY_PATH = os.path.join(DATASET_DIR, "topology", "topology_edge_index.npy")
+
+DELTA_T = 1.0 / FPS
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

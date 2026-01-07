@@ -4,7 +4,9 @@ import torch.optim as optim
 import os
 import numpy as np
 from tqdm import tqdm
+
 import config as cfg
+from validateVis import validate_rollout
 
 def get_next_version_dir(base_dir):
     """
@@ -89,7 +91,7 @@ def setup_optimization(model):
 
     return optimizer, scheduler
 
-def trainModel(train_set, device):
+def trainModel(train_set, test_set, device):
     """Main training loop (Validation Removed)."""
     
     # ==========================================
@@ -247,6 +249,25 @@ def trainModel(train_set, device):
     
     # Fixed weights_only parameter (it is 'weights_only', not 'weight_only')
     model.load_state_dict(torch.load(best_pth_path, weights_only=True))
+    
+    # ==========================================
+    # TRIGGER VISUAL VALIDATION
+    # ==========================================
+    model_ver = os.path.basename(run_dir)
+    print(f"🎨 Triggering Visualization for Model Version: {model_ver}")
+
+    # Extract UNIQUE Run IDs from the test set
+    unique_test_runs = sorted(list(set([sample[0] for sample in test_set.samples])))
+    
+    print(f"Found {len(unique_test_runs)} unique runs in Test Set: {unique_test_runs}")
+
+    # 2. Iterate over Unique Runs only
+    for run_idx in unique_test_runs:
+        validate_rollout(
+            dataset=test_set, 
+            model_ver=model_ver, 
+            run_index=run_idx
+        )
     
     print(f"✅ Returned model with Best Train Loss: {best_loss:.5f}")
     return model

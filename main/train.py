@@ -23,4 +23,4 @@ if __name__ == "__main__":
     
     train_set, test_set = FlagWindDataset.load_and_split(train_ratio=0.8)
     
-    model = trainModel(train_set, device)
+    model = trainModel(train_set, test_set, device)
