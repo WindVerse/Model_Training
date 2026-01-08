@@ -92,7 +92,7 @@ class FlagWindDataset(Dataset):
         # run_metadata[i] is (index, iteration)
         train_limit_iter = run_metadata[num_train - 1][1] if num_train > 0 else 0
         
-        print(f"Total Runs: {total_runs}. Train Count: {num_train}. Cutoff Iteration: {train_limit_iter}")
+        print(f"Total Runs: {total_runs}. Train Count: {num_train}. Test Count: {total_runs - num_train}.")
 
         # Create Sample Indices
         train_samples = []

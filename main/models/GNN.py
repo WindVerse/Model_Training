@@ -82,7 +82,8 @@ class FlagGraphNet(nn.Module):
 
     def forward(self, x_nodes, x_wind, edge_index):
         # 1. Feature Engineering
-        row, col = edge_index
+        row = edge_index[0]
+        col = edge_index[1]
         pos = x_nodes[:, :3]
         vel = x_nodes[:, 3:6]
         

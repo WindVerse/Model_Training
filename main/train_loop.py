@@ -9,6 +9,7 @@ import config as cfg
 from validate.validateVis import validate_rollout
 from validate.validateMetric import validate_metrics
 from models.load_model import load_model
+from gen_details import generate_details
 
 def get_next_version_dir(base_dir):
     """
@@ -83,7 +84,7 @@ def setup_optimization(model):
 
     scheduler = None
     if cfg.SCHEDULER == 'ReduceLROnPlateau':
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=cfg.SCHEDULER_FACTOR, patience=cfg.SCHEDULER_PATIENCE)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode=cfg.SCHEDULER_MODE, factor=cfg.SCHEDULER_FACTOR, patience=cfg.SCHEDULER_PATIENCE)
     elif cfg.SCHEDULER == 'StepLR':
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=cfg.SCHEDULER_STEP_SIZE, gamma=cfg.SCHEDULER_GAMMA)
     elif cfg.SCHEDULER == 'None':
@@ -249,12 +250,7 @@ def trainModel(train_set, test_set, device):
 
     # Extract UNIQUE Run IDs from the test set
     unique_test_runs = sorted(list(set([sample[0] for sample in test_set.samples])))
-    
     print(f"Found {len(unique_test_runs)} unique runs in Test Set: {unique_test_runs}")
-
-    # 2. Iterate over Unique Runs only
-    
-    
     
     for run_idx in unique_test_runs:
         validate_rollout(
@@ -262,11 +258,24 @@ def trainModel(train_set, test_set, device):
             model_ver=model_ver, 
             run_index=run_idx
         )
-        validate_metrics(
+        avg_rmse, avg_edge_err = validate_metrics(
             dataset=test_set,
             model_ver=model_ver,
             run_index=run_idx
         )
     
+    # Save Training Details
+    details = generate_details(
+        train_loss=best_loss,
+        test_rmse=avg_rmse,
+        test_edge_err=avg_edge_err
+    )
+    details_path = os.path.join(run_dir, "summary.txt")
+    with open(details_path, 'w') as f:
+        f.write(details)
+        f.close()
+    print(f"📄 Training summary saved to: {details_path}")
+    
     print(f"✅ Returned model with Best Train Loss: {best_loss:.5f}")
+    
     return model

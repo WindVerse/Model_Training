@@ -13,6 +13,7 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
     
+    # Verify Dataset Directories
     if os.path.exists(cfg.FLAG_DIR) and os.path.exists(cfg.WIND_DIR) and os.path.exists(cfg.TARGET_DIR):
         print("All dataset directories found.")
         print(f"Contents check: {len(os.listdir(cfg.FLAG_DIR))} files found in 'flags'.")
@@ -21,6 +22,8 @@ if __name__ == "__main__":
     else:
         print("Error: One or more dataset directories are missing.")
     
+    # Load and Split Dataset
     train_set, test_set = FlagWindDataset.load_and_split(train_ratio=0.8)
     
+    # Train Model
     model = trainModel(train_set, test_set, device)

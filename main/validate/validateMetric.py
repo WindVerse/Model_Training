@@ -30,7 +30,7 @@ def calculate_edge_lengths(pos, edge_index):
 
 def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"📊 Starting Numerical Validation for Run {run_index}...")
+    print(f"📊 Starting Numerical Validation for Run {run_index+1}...")
 
     # 1. Setup Data
     gt_flags = dataset.data_flags[run_index] # (Frames, Nodes, 6)
@@ -51,7 +51,10 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
     edge_index = torch.from_numpy(edge_index_np).long().to(device)
 
     # 4. Prepare Stats
-    def to_tensor(val): return torch.tensor(val, device=device).float()
+    def to_tensor(val):
+        if torch.is_tensor(val):
+            return val.to(device=device, dtype=torch.float32)
+        return torch.tensor(val, device=device, dtype=torch.float32)
     
     mean_flag = to_tensor(dataset.stats['flag_mean']).view(1, -1)
     std_flag  = to_tensor(dataset.stats['flag_std']).view(1, -1)
@@ -126,7 +129,11 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
     os.makedirs(save_dir, exist_ok=True)
     
     plot_metrics(rmse_history, edge_error_history, save_dir, run_index)
-    print(f"✅ Metrics saved to {save_dir}")
+    print(f"✅ Plots saved to {save_dir}")
+    
+    avg_rmse = np.mean(rmse_history)
+    avg_edge_err = np.mean(edge_error_history)
+    return avg_rmse, avg_edge_err
 
 def plot_metrics(rmse, edge_err, save_dir, run_index):
     """Generates and saves the validation graphs"""

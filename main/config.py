@@ -4,7 +4,12 @@ import torch
 # Test or Not
 IS_TEST = True
 
-# Dataset Properties
+
+
+#########################################
+########### Dataset Properties ##########
+#########################################
+
 if IS_TEST:
     DATASET_VERSION = 0
 else:
@@ -29,7 +34,14 @@ EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist
 NUM_VERTICES = HEIGHT*WIDTH
 BASE_DATASET_PATH = "../../datasets/"
 
-# Hyperparameters
+
+
+
+
+#########################################
+########### Model Hyperparameters #######
+#########################################
+
 MODEL = "GNN"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
 if IS_TEST:
@@ -53,23 +65,44 @@ DROPOUT_RATE = 0.1
 ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
 USE_LAYER_NORM = True
 
-# Loss Hyperparameters
+
+
+
+
+##########################################
+########### Loss Hyperparameters #########
+##########################################
+
 LAMBDA_WARP = 1.0      # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.1    # Weight for Smoothness
 LAMBDA_PIN = 50.0      # Weight for Pinned Nodes (Pole)
 
-# Optimizer
+
+
+
+
+##########################################
+########### Optimizer Settings ###########
+##########################################
+
 OPTIMIZER = 'Adam'          # Options: 'Adam', 'SGD', 'RMSprop'
 LEARNING_RATE = 1e-4        # Initial Learning Rate
 WEIGHT_DECAY = 1e-5         # L2 Regularization (Prevents exploding weights)
 MOMENTUM = 0.9              # Used only for SGD
 
-# Scheduler
+
+
+
+##########################################
+########### Scheduler Settings ###########
+##########################################
+
 SCHEDULER = 'ReduceLROnPlateau' # Options: 'ReduceLROnPlateau', 'StepLR', 'None'
 # Scheduler Specifics
 # 1. ReduceLROnPlateau (Reduces LR when validation loss stops improving)
 SCHEDULER_FACTOR = 0.5      # Multiply LR by this factor
 SCHEDULER_PATIENCE = 5      # How many epochs to wait before reducing
+SCHEDULER_MODE = 'min'    # 'min' or 'max' based on monitored metric
 # 2. StepLR (Reduces LR every X epochs)
 SCHEDULER_STEP_SIZE = 10    # Decay every 10 epochs
 SCHEDULER_GAMMA = 0.1       # Decay rate

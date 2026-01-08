@@ -23,7 +23,7 @@ def integrate_semi_implicit_euler(pos, vel, accel, dt):
 
 def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"🎥 Starting Validation Rollout for Run {run_index} on {device}...")
+    print(f"🎥 Starting Validation Rollout for Run {run_index+1} on {device}...")
     
     # Extract Ground Truth
     gt_flags = dataset.data_flags[run_index] 
@@ -49,7 +49,10 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     edge_index = torch.from_numpy(edge_index_np).long().to(device)
 
     # 4. Prepare Stats
-    def to_tensor(val): return torch.tensor(val, device=device).float()
+    def to_tensor(val):
+        if torch.is_tensor(val):
+            return val.to(device=device, dtype=torch.float32)        
+        return torch.tensor(val, device=device, dtype=torch.float32)
     
     mean_flag = to_tensor(dataset.stats['flag_mean']).view(1, -1)
     std_flag  = to_tensor(dataset.stats['flag_std']).view(1, -1)
