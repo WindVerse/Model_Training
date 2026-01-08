@@ -7,12 +7,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config as cfg
 from dataset_helpers.dataset import FlagWindDataset
-
-# Dynamic Model Import
-if cfg.MODEL == 'GNN':
-    from models.GNN import FlagGraphNet as ModelClass
-else:
-    raise ValueError(f"Unknown MODEL: {cfg.MODEL}")
+from models.load_model import load_model
 
 def integrate_semi_implicit_euler(pos, vel, accel, dt):
     """Standard Physics Integration"""
@@ -45,13 +40,7 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
     num_nodes = gt_flags.shape[1]
 
     # 2. Load Model
-    model = ModelClass(
-        in_node_dim=cfg.NODE_DIM,
-        in_wind_dim=cfg.WIND_DIM,
-        in_edge_dim=cfg.EDGE_DIM,
-        hidden_dim=cfg.HIDDEN_DIM,
-        num_layers=cfg.NO_GNN_LAYERS
-    ).to(device)
+    model = load_model(device)
     
     model_path = os.path.join(cfg.DATASET_DIR, "models", model_ver, "best_model.pth")
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
@@ -174,4 +163,6 @@ if __name__ == "__main__":
     train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO)
     
     # Validate Run 0 from the TEST set
-    validate_metrics(dataset=train, model_ver="010", run_index=1, sub_dir="temp")
+    # validate_metrics(dataset=train, model_ver="004", run_index=1, sub_dir="temp")
+    for run_idx in range(0, 20):
+        validate_metrics(dataset=test, model_ver="004", run_index=run_idx, sub_dir="temp")

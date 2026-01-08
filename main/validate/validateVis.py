@@ -9,13 +9,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config as cfg
 from dataset_helpers.dataset import FlagWindDataset
-
-
-# Dynamic Model Import
-if cfg.MODEL == 'GNN':
-    from models.GNN import FlagGraphNet as ModelClass
-else:
-    raise ValueError(f"Unknown MODEL: {cfg.MODEL}")
+from models.load_model import load_model
 
 def integrate_semi_implicit_euler(pos, vel, accel, dt):
     """
@@ -39,13 +33,7 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     num_nodes = gt_flags.shape[1]
     
     # 2. Load Model
-    model = ModelClass(
-        in_node_dim=cfg.NODE_DIM,
-        in_wind_dim=cfg.WIND_DIM,
-        in_edge_dim=cfg.EDGE_DIM,
-        hidden_dim=cfg.HIDDEN_DIM,
-        num_layers=cfg.NO_GNN_LAYERS
-    ).to(device)
+    model = load_model(device)
     
     # Load Best Weights
     model_path = os.path.join(cfg.DATASET_DIR, "models", model_ver, "best_model.pth")
@@ -172,4 +160,6 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
 
 if __name__ == "__main__":    
     train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO) 
-    validate_rollout(dataset=train, model_ver="010", run_index=2, sub_dir="temp")
+    # validate_rollout(dataset=test, model_ver="004", run_index=0, sub_dir="temp")
+    for run_idx in range(0, 20):
+        validate_rollout(dataset=test, model_ver="004", run_index=run_idx, sub_dir="temp")

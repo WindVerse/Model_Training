@@ -1,14 +1,26 @@
 import os
 import torch
 
+# Test or Not
+IS_TEST = True
+
 # Dataset Properties
-DATASET_VERSION = 6
+if IS_TEST:
+    DATASET_VERSION = 0
+else:
+    DATASET_VERSION = 0
 TARGET_TYPE = "accelerations"                    # displacements, velocity_differences, accelerations
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
-ITERATION_COUNT = 100
+if IS_TEST:
+    ITERATION_COUNT = 5
+else:
+    ITERATION_COUNT = 100
 FPS = 10
-MAX_FRAMES = 300
+if IS_TEST:
+    MAX_FRAMES = 30
+else:
+    MAX_FRAMES = 300
 HEIGHT = 20
 WIDTH = 30
 NODE_DIM = 6                                     # 3-[Pos_x, Pos_y, Pos_z], 6-[Pos_x, Pos_y, Pos_z, Vel_x, Vel_y, Vel_z]
@@ -20,14 +32,22 @@ BASE_DATASET_PATH = "../../datasets/"
 # Hyperparameters
 MODEL = "GNN"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
-EPOCHS = 10
+if IS_TEST:
+    EPOCHS = 2
+else:
+    EPOCHS = 50
 LEARNING_RATE = 0.001
-BATCH_SIZE = 4
+BATCH_SIZE = 8
 
 SEQUENCE_LENGTH = 10
-NO_MLP_HIDDEN_LAYERS = 3
-NO_GNN_LAYERS = 3
-HIDDEN_DIM = 64
+if IS_TEST:
+    NO_MLP_HIDDEN_LAYERS = 1
+    NO_GNN_LAYERS = 1
+    HIDDEN_DIM = 16
+else:
+    NO_MLP_HIDDEN_LAYERS = 5
+    NO_GNN_LAYERS = 5
+    HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
 DROPOUT_RATE = 0.1
 ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'

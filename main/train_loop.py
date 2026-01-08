@@ -8,6 +8,7 @@ from tqdm import tqdm
 import config as cfg
 from validate.validateVis import validate_rollout
 from validate.validateMetric import validate_metrics
+from models.load_model import load_model
 
 def get_next_version_dir(base_dir):
     """
@@ -107,19 +108,8 @@ def trainModel(train_set, test_set, device):
     # ==========================================
     # 1. MODEL INITIALIZATION
     # ==========================================
-    if cfg.MODEL == 'GNN':
-        from models.GNN import FlagGraphNet as ModelClass
-        model = ModelClass(
-            in_node_dim=cfg.NODE_DIM,
-            in_wind_dim=cfg.WIND_DIM,
-            in_edge_dim=cfg.EDGE_DIM,
-            hidden_dim=cfg.HIDDEN_DIM,
-            num_layers=cfg.NO_GNN_LAYERS
-        ).to(device)
-    else:
-        raise ValueError(f"Unknown MODEL in config: {cfg.MODEL}")
-    
     print(f"Initializing Model: {cfg.MODEL}...")
+    model = load_model(device)
 
     # ==========================================
     # 2. LOSS INITIALIZATION
