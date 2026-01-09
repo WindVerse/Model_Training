@@ -7,107 +7,99 @@ import config as cfg
 
 class PhysicsLoss(nn.Module):
     def __init__(self, 
-                 initial_flag_pos,  # Can be (N, 6) or (N, 3) numpy array
-                 mean,              # Training set Mean (tensor or array)
-                 std,               # Training set Std (tensor or array)
+                 initial_flag_pos,  # (N, 3) 
+                 mean,              # Training set Mean
+                 std,               # Training set Std
                  device="cuda"):
         super().__init__()
 
-        # 1. Hyperparameters from Config
-        self.lambda_warp = cfg.LAMBDA_WARP
-        self.lambda_smooth = cfg.LAMBDA_SMOOTH
-        self.lambda_pin = cfg.LAMBDA_PIN
+        # 1. Hyperparameters
+        self.lambda_warp = cfg.LAMBDA_WARP    # Penalize stretching
+        self.lambda_pin = cfg.LAMBDA_PIN      # Penalize moving pinned nodes
+        self.dt = cfg.DELTA_T
 
-        # 2. Store Normalization Stats (Needed to de-normalize for physics calc)
-        # Reshape to (1, 1, Features) for broadcasting
+        # 2. Normalization Stats (For De-normalization)
         self.mean = torch.as_tensor(mean, device=device).view(1, 1, -1)
         self.std = torch.as_tensor(std, device=device).view(1, 1, -1)
+        
+        # We need specific indices for Accel (usually last 3 channels if mean is huge)
+        # Assuming mean/std are shape (1, 1, 3) for just acceleration, 
+        # OR if they are (1, 1, 9) [pos, vel, acc], we need to slice them carefully.
+        # For simplicity here, I assume mean/std correspond exactly to the model output channels.
 
         # 3. Load Topology (Edges)
         edge_index = np.load(cfg.TOPOLOGY_PATH)
-        # Store as LongTensor for indexing
         self.src = torch.from_numpy(edge_index[0]).long().to(device)
         self.dst = torch.from_numpy(edge_index[1]).long().to(device)
 
         # 4. Setup Rest Lengths (The "Springs")
         initial_pos = torch.as_tensor(initial_flag_pos, device=device).float()
-        
-        # Take only Position (first 3 channels), ignore Velocity
         pos_only = initial_pos[:, :3] 
-
-        # Calculate vector between connected nodes
+        
+        # Calculate initial distances (L0)
         rest_vec = pos_only[self.src] - pos_only[self.dst]
-        
-        # Calculate Euclidean distance (L2 norm)
-        # Shape: (Num_Edges,)
-        self.rest_lengths = torch.norm(rest_vec, dim=1)
+        self.rest_lengths = torch.norm(rest_vec, dim=1) # Shape: (Num_Edges,)
 
-        # 5. Setup Pinned Nodes (The "Pole")
-        # Automatically detect pinned nodes: Column 0 of the grid
-        # In a row-major grid of W columns, indices are 0, W, 2W, 3W...
+        # 5. Setup Pinned Nodes (Column 0)
         H, W = cfg.HEIGHT, cfg.WIDTH
-        
-        # Generate indices for the first column (0, 30, 60...)
         pinned_indices = [r * W for r in range(H)]
-        
         self.pinned_idx = torch.tensor(pinned_indices, dtype=torch.long, device=device)
-        
-        # Store the EXACT Target Position for these pinned nodes
-        # Shape: (Num_Pinned, 3)
-        self.pinned_pos_target = pos_only[self.pinned_idx]
+        self.pinned_pos_target = pos_only[self.pinned_idx] # (N_Pin, 3)
 
-    def forward(self, pred_norm, target_norm):
+    def de_normalize(self, tensor_norm):
+        """Revert standard scaler normalization to get real units (meters/s^2)"""
+        return (tensor_norm * self.std) + self.mean
+
+    def forward(self, pred_norm, target_norm, curr_pos, curr_vel):
         """
-        pred_norm: Model Output (Normalized Acceleration)
-        target_norm: Ground Truth (Normalized Acceleration)
-        NOTE: Ideally, physics loss works on POSITION. 
-        If your model outputs acceleration, you assume standard MSE is dominant, 
-        and these auxiliary losses help regularize the latent physics.
+        pred_norm: Model Output (Normalized Acceleration) [B, N, 3]
+        target_norm: Ground Truth (Normalized Acceleration) [B, N, 3]
+        curr_pos: Real-world Position at time t [B, N, 3]
+        curr_vel: Real-world Velocity at time t [B, N, 3]
         """
         
-        # 1. Flatten Batch and Time dimensions for simpler processing
-        # Input: (Batch, Time, Nodes, 3) -> (Batch*Time, Nodes, 3)
-        if pred_norm.dim() == 4:
-            B, L, N, D = pred_norm.shape
-            pred_flat = pred_norm.reshape(B * L, N, D)
-            target_flat = target_norm.reshape(B * L, N, D)
-        else:
-            pred_flat = pred_norm
-            target_flat = target_norm
+        # --- 1. Standard MSE Loss (Supervised) ---
+        mse_loss = F.mse_loss(pred_norm, target_norm)
 
-        # --- A. Standard MSE Loss (Normalized Space) ---
-        mse_loss = F.mse_loss(pred_flat, target_flat)
+        # --- 2. INTEGRATION (The Critical Step) ---
+        # We must de-normalize predictions to apply physics laws
+        pred_accel_real = self.de_normalize(pred_norm)
 
-        # --- PREPARE REAL WORLD DATA (De-normalization) ---
-        # NOTE: If your model predicts ACCELERATION, calculating position constraints
-        # is tricky without a full integration step. 
-        # HOWEVER, we can apply these constraints to the "Predicted Next State" 
-        # if we had the previous state.
-        #
-        # Since this loss function only receives `pred` (acceleration), 
-        # we will apply the constraints to the acceleration vector itself 
-        # (e.g. pinned nodes should have 0 acceleration).
-        
-        # --- B. PIN LOSS (Acceleration Constraint) ---
-        # Pinned nodes should have ZERO acceleration (stay still).
-        # We don't need de-normalization for this; 0 is 0.
-        
-        pred_accel = pred_flat # (Batch, Nodes, 3)
-        
-        # Extract acceleration of pinned nodes
-        current_pinned_accel = pred_accel[:, self.pinned_idx] # (Batch, N_Pin, 3)
-        
-        # Target is Zero Acceleration
-        target_pinned_accel = torch.zeros_like(current_pinned_accel)
-        
-        pin_loss = F.mse_loss(current_pinned_accel, target_pinned_accel)
+        # Euler Integration: Pos_new = Pos_old + Vel*dt + 0.5*Acc*dt^2
+        # This tells us where the nodes WILL be based on the model's prediction
+        pred_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * pred_accel_real * (self.dt ** 2))
 
-        # --- TOTAL LOSS ---
-        # Note: We skipped Edge Loss here because calculating edge length from 
-        # acceleration alone is mathematically invalid without the velocity/position context.
-        # Ideally, you integrate (Pos_new = Pos_old + Vel*dt + 0.5*Acc*dt^2) 
-        # and apply Edge Loss on Pos_new.
+        # --- 3. EDGE LOSS (Stretch/Warp) ---
+        # "Don't let the flag turn into spaghetti"
+        # We compare the length of edges in pred_pos_next vs rest_lengths
         
-        total_loss = mse_loss + (self.lambda_pin * pin_loss)
+        # Get positions of connected nodes
+        p_src = pred_pos_next[:, self.src, :] # (B, E, 3)
+        p_dst = pred_pos_next[:, self.dst, :] # (B, E, 3)
+        
+        # Calculate current lengths
+        curr_vec = p_src - p_dst
+        curr_lengths = torch.norm(curr_vec, dim=2) # (B, E)
+        
+        # Loss: Difference between current length and rest length
+        # We use relative error: |L_curr - L_rest| / L_rest
+        # This prevents long edges from dominating the loss
+        length_diff = (curr_lengths - self.rest_lengths) / (self.rest_lengths + 1e-6)
+        edge_loss = torch.mean(length_diff ** 2)
 
-        return total_loss, mse_loss, pin_loss
+        # --- 4. PIN LOSS (Position Constraint) ---
+        # "Don't let the pole move"
+        # Instead of just Accel=0, we enforce Pos=Target
+        
+        current_pinned_pos = pred_pos_next[:, self.pinned_idx, :] # (B, N_Pin, 3)
+        # Expand target to batch size
+        target_pos_expanded = self.pinned_pos_target.unsqueeze(0).expand(current_pinned_pos.shape)
+        
+        pin_loss = F.mse_loss(current_pinned_pos, target_pos_expanded)
+
+        # --- 5. Total Loss ---
+        total_loss = mse_loss + \
+                     (self.lambda_warp * edge_loss) + \
+                     (self.lambda_pin * pin_loss)
+
+        return total_loss, mse_loss, edge_loss, pin_loss

@@ -153,6 +153,7 @@ def trainModel(train_set, test_set, device):
         total_train_loss = 0
         total_mse = 0
         total_pin = 0
+        total_edge = 0
         
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.EPOCHS} [Train]")
         
@@ -190,7 +191,10 @@ def trainModel(train_set, test_set, device):
             pred_reshaped = pred_accel.view(B*T, N, 3)
             target_reshaped = y_target_flat.view(B*T, N, 3)
             
-            loss, mse, pin_loss = criterion(pred_reshaped, target_reshaped)
+            curr_pos = flag_seq[..., :3].view(B*T, N, 3)
+            curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
+            
+            loss, mse, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
 
             # --- BACKWARD STEP ---
             loss.backward()
@@ -200,8 +204,9 @@ def trainModel(train_set, test_set, device):
             # Logging
             total_train_loss += loss.item()
             total_mse += mse.item()
+            total_edge += edge_loss.item()
             total_pin += pin_loss.item()
-            loop.set_postfix(loss=loss.item(), mse=mse.item(), pin=pin_loss.item())
+            loop.set_postfix(loss=loss.item(), mse=mse.item(), edge=edge_loss.item(), pin=pin_loss.item())
 
         avg_train_loss = total_train_loss / len(train_loader)
 
@@ -252,17 +257,21 @@ def trainModel(train_set, test_set, device):
     unique_test_runs = sorted(list(set([sample[0] for sample in test_set.samples])))
     print(f"Found {len(unique_test_runs)} unique runs in Test Set: {unique_test_runs}")
     
+    avg_rmse = 0
+    avg_edge_err = 0
     for run_idx in unique_test_runs:
         validate_rollout(
             dataset=test_set, 
             model_ver=model_ver, 
             run_index=run_idx
         )
-        avg_rmse, avg_edge_err = validate_metrics(
+        avg_rmse_per_run, avg_edge_err_per_run = validate_metrics(
             dataset=test_set,
             model_ver=model_ver,
             run_index=run_idx
         )
+        avg_rmse += avg_rmse_per_run
+        avg_edge_err += avg_edge_err_per_run
     
     # Save Training Details
     details = generate_details(

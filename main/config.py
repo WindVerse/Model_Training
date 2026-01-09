@@ -47,7 +47,7 @@ LOSS = "physicsLoss"                             # 'physicsLoss', add more later
 if IS_TEST:
     EPOCHS = 2
 else:
-    EPOCHS = 50
+    EPOCHS = 10
 LEARNING_RATE = 0.001
 BATCH_SIZE = 8
 
