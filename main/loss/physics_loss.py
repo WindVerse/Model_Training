@@ -14,7 +14,7 @@ class PhysicsLoss(nn.Module):
         super().__init__()
 
         # 1. Hyperparameters
-        self.lambda_warp = cfg.LAMBDA_WARP    # Penalize stretching
+        self.lambda_edge = cfg.LAMBDA_EDGE    # Penalize stretching
         self.lambda_pin = cfg.LAMBDA_PIN      # Penalize moving pinned nodes
         self.dt = cfg.DELTA_T
 
@@ -69,7 +69,7 @@ class PhysicsLoss(nn.Module):
         # This tells us where the nodes WILL be based on the model's prediction
         pred_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * pred_accel_real * (self.dt ** 2))
 
-        # --- 3. EDGE LOSS (Stretch/Warp) ---
+        # --- 3. EDGE LOSS (Stretch/edge) ---
         # "Don't let the flag turn into spaghetti"
         # We compare the length of edges in pred_pos_next vs rest_lengths
         
@@ -99,7 +99,7 @@ class PhysicsLoss(nn.Module):
 
         # --- 5. Total Loss ---
         total_loss = mse_loss + \
-                     (self.lambda_warp * edge_loss) + \
+                     (self.lambda_edge * edge_loss) + \
                      (self.lambda_pin * pin_loss)
 
         return total_loss, mse_loss, edge_loss, pin_loss

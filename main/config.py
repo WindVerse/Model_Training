@@ -13,7 +13,7 @@ IS_TEST = True
 if IS_TEST:
     DATASET_VERSION = 0
 else:
-    DATASET_VERSION = 0
+    DATASET_VERSION = 6
 TARGET_TYPE = "accelerations"                    # displacements, velocity_differences, accelerations
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
@@ -73,8 +73,8 @@ USE_LAYER_NORM = True
 ########### Loss Hyperparameters #########
 ##########################################
 
-LAMBDA_WARP = 1.0      # Weight for Spring Constraint (Edge Length)
-LAMBDA_SMOOTH = 0.1    # Weight for Smoothness
+LAMBDA_EDGE = 100.0    # Weight for Spring Constraint (Edge Length)
+LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 50.0      # Weight for Pinned Nodes (Pole)
 
 

@@ -120,9 +120,9 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
 
     def setup_ax(ax):
         # Adjust these limits based on your actual data scale if needed
-        ax.set_xlim(-0.5, 2.5) 
-        ax.set_ylim(-1.5, 1.5)
-        ax.set_zlim(-1.5, 1.5)
+        ax.set_xlim(-1, 1) 
+        ax.set_ylim(-1, 1)
+        ax.set_zlim(-1, 1)
         ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
 
     setup_ax(ax1)
