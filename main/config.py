@@ -57,9 +57,9 @@ if IS_TEST:
     NO_GNN_LAYERS = 2
     HIDDEN_DIM = 16
 else:
-    NO_MLP_HIDDEN_LAYERS = 6
-    NO_GNN_LAYERS = 4
-    HIDDEN_DIM = 256
+    NO_MLP_HIDDEN_LAYERS = 5
+    NO_GNN_LAYERS = 5
+    HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
 DROPOUT_RATE = 0.1
 ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
@@ -73,9 +73,10 @@ USE_LAYER_NORM = True
 ########### Loss Hyperparameters #########
 ##########################################
 
-LAMBDA_EDGE = 0.0    # Weight for Spring Constraint (Edge Length)
+LAMBDA_RMSE = 1
+LAMBDA_EDGE = 0    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
-LAMBDA_PIN = 10.0      # Weight for Pinned Nodes (Pole)
+LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 
 
 

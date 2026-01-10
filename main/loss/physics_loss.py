@@ -14,6 +14,7 @@ class PhysicsLoss(nn.Module):
         super().__init__()
 
         # 1. Hyperparameters
+        self.lambda_rmse = cfg.LAMBDA_RMSE
         self.lambda_edge = cfg.LAMBDA_EDGE    # Penalize stretching
         self.lambda_pin = cfg.LAMBDA_PIN      # Penalize moving pinned nodes
         self.dt = cfg.DELTA_T
@@ -84,7 +85,7 @@ class PhysicsLoss(nn.Module):
         # Loss: Difference between current length and rest length
         # We use relative error: |L_curr - L_rest| / L_rest
         # This prevents long edges from dominating the loss
-        length_diff = (curr_lengths - self.rest_lengths) / (self.rest_lengths + 1e-6)
+        length_diff = curr_lengths - self.rest_lengths
         edge_loss = torch.mean(length_diff ** 2)
 
         # --- 4. PIN LOSS (Position Constraint) ---
@@ -98,7 +99,7 @@ class PhysicsLoss(nn.Module):
         pin_loss = F.mse_loss(current_pinned_pos, target_pos_expanded)
 
         # --- 5. Total Loss ---
-        total_loss = mse_loss + \
+        total_loss = (self.lambda_rmse * mse_loss) + \
                      (self.lambda_edge * edge_loss) + \
                      (self.lambda_pin * pin_loss)
 

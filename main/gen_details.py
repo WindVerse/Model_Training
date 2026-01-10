@@ -33,6 +33,7 @@ def generate_details(train_loss, test_rmse, test_edge_err):
     if cfg.LOSS == 'physicsLoss':
         details += f"""
             "Loss Function": {cfg.LOSS},
+            "Lambda RMSE": {cfg.LAMBDA_RMSE},
             "Lambda EDGE": {cfg.LAMBDA_EDGE},
             "Lambda Smooth": {cfg.LAMBDA_SMOOTH},
             "Lambda Pin": {cfg.LAMBDA_PIN},
