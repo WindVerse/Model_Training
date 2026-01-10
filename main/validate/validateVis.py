@@ -163,6 +163,6 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
 
 if __name__ == "__main__":    
     train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO) 
-    validate_rollout(dataset=test, model_ver="023", run_index=0, sub_dir="temp")
+    validate_rollout(dataset=test, model_ver="039", run_index=0, sub_dir="temp")
     # for run_idx in range(0, 20):
     #     validate_rollout(dataset=test, model_ver="005", run_index=run_idx, sub_dir="temp")

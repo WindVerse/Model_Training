@@ -55,7 +55,7 @@ SEQUENCE_LENGTH = 10
 if IS_TEST:
     NO_MLP_HIDDEN_LAYERS = 2
     NO_GNN_LAYERS = 2
-    HIDDEN_DIM = 16
+    HIDDEN_DIM = 128
 else:
     NO_MLP_HIDDEN_LAYERS = 5
     NO_GNN_LAYERS = 5
@@ -73,8 +73,8 @@ USE_LAYER_NORM = True
 ########### Loss Hyperparameters #########
 ##########################################
 
-LAMBDA_RMSE = 1
-LAMBDA_EDGE = 0    # Weight for Spring Constraint (Edge Length)
+LAMBDA_RMSE = 2
+LAMBDA_EDGE = 1    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 

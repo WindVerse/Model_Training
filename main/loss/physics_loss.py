@@ -44,6 +44,7 @@ class PhysicsLoss(nn.Module):
         # 5. Setup Pinned Nodes (Column 0)
         H, W = cfg.HEIGHT, cfg.WIDTH
         pinned_indices = [r * W for r in range(H)]
+        print(f"pinned_indices: {pinned_indices}")
         self.pinned_idx = torch.tensor(pinned_indices, dtype=torch.long, device=device)
         self.pinned_pos_target = pos_only[self.pinned_idx] # (N_Pin, 3)
 
