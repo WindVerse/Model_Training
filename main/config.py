@@ -45,21 +45,21 @@ BASE_DATASET_PATH = "../../datasets/"
 MODEL = "GNN"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
 if IS_TEST:
-    EPOCHS = 2
+    EPOCHS = 10
 else:
     EPOCHS = 10
 LEARNING_RATE = 0.001
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 
 SEQUENCE_LENGTH = 10
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 1
-    NO_GNN_LAYERS = 1
+    NO_MLP_HIDDEN_LAYERS = 2
+    NO_GNN_LAYERS = 2
     HIDDEN_DIM = 16
 else:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
-    HIDDEN_DIM = 128
+    NO_MLP_HIDDEN_LAYERS = 6
+    NO_GNN_LAYERS = 4
+    HIDDEN_DIM = 256
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
 DROPOUT_RATE = 0.1
 ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
@@ -73,9 +73,9 @@ USE_LAYER_NORM = True
 ########### Loss Hyperparameters #########
 ##########################################
 
-LAMBDA_EDGE = 100.0    # Weight for Spring Constraint (Edge Length)
+LAMBDA_EDGE = 0.0    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
-LAMBDA_PIN = 50.0      # Weight for Pinned Nodes (Pole)
+LAMBDA_PIN = 10.0      # Weight for Pinned Nodes (Pole)
 
 
 
