@@ -5,6 +5,24 @@ import numpy as np
 
 import config as cfg
 
+def compute_chamfer_loss(self, pred_pos, target_pos):
+        """
+        Computes symmetric Chamfer Distance between two point clouds.
+        pred_pos, target_pos: (B, N, 3)
+        """
+        # 1. Compute pairwise distances (B, N, N)
+        # cdist is an optimized C++ implementation in PyTorch
+        dists = torch.cdist(pred_pos, target_pos) 
+        
+        # 2. For each point in pred, find closest point in target
+        min_dist_pred, _ = torch.min(dists, dim=2) # (B, N)
+        
+        # 3. For each point in target, find closest point in pred
+        min_dist_target, _ = torch.min(dists, dim=1) # (B, N)
+        
+        # 4. Average the distances
+        return torch.mean(min_dist_pred) + torch.mean(min_dist_target)
+
 class PhysicsLoss(nn.Module):
     def __init__(self, 
                  initial_flag_pos,  # (N, 3) 
@@ -15,6 +33,7 @@ class PhysicsLoss(nn.Module):
 
         # 1. Hyperparameters
         self.lambda_rmse = cfg.LAMBDA_RMSE
+        self.lambda_chamfer = cfg.LAMBDA_CHAMFER
         self.lambda_edge = cfg.LAMBDA_EDGE    # Penalize stretching
         self.lambda_pin = cfg.LAMBDA_PIN      # Penalize moving pinned nodes
         self.dt = cfg.DELTA_T
@@ -52,6 +71,24 @@ class PhysicsLoss(nn.Module):
         """Revert standard scaler normalization to get real units (meters/s^2)"""
         return (tensor_norm * self.std) + self.mean
 
+    def compute_chamfer_loss(self, pred_pos, target_pos):
+        """
+        Computes symmetric Chamfer Distance between two point clouds.
+        pred_pos, target_pos: (B, N, 3)
+        """
+        # 1. Compute pairwise distances (B, N, N)
+        # cdist is an optimized C++ implementation in PyTorch
+        dists = torch.cdist(pred_pos, target_pos) 
+        
+        # 2. For each point in pred, find closest point in target
+        min_dist_pred, _ = torch.min(dists, dim=2) # (B, N)
+        
+        # 3. For each point in target, find closest point in pred
+        min_dist_target, _ = torch.min(dists, dim=1) # (B, N)
+        
+        # 4. Average the distances
+        return torch.mean(min_dist_pred) + torch.mean(min_dist_target)
+    
     def forward(self, pred_norm, target_norm, curr_pos, curr_vel):
         """
         pred_norm: Model Output (Normalized Acceleration) [B, N, 3]
@@ -70,8 +107,16 @@ class PhysicsLoss(nn.Module):
         # Euler Integration: Pos_new = Pos_old + Vel*dt + 0.5*Acc*dt^2
         # This tells us where the nodes WILL be based on the model's prediction
         pred_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * pred_accel_real * (self.dt ** 2))
+        
+        target_accel_real = self.de_normalize(target_norm)
+        target_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * target_accel_real * (self.dt ** 2))
+        
+        
+        # Champher Loss
+        chamfer_loss = self.compute_chamfer_loss(pred_pos_next, target_pos_next)
+        
 
-        # --- 3. EDGE LOSS (Stretch/edge) ---
+        # --- EDGE LOSS (Stretch/edge) ---
         # "Don't let the flag turn into spaghetti"
         # We compare the length of edges in pred_pos_next vs rest_lengths
         
@@ -101,7 +146,8 @@ class PhysicsLoss(nn.Module):
 
         # --- 5. Total Loss ---
         total_loss = (self.lambda_rmse * mse_loss) + \
+                     (self.lambda_chamfer * chamfer_loss) + \
                      (self.lambda_edge * edge_loss) + \
                      (self.lambda_pin * pin_loss)
 
-        return total_loss, mse_loss, edge_loss, pin_loss
+        return total_loss, mse_loss, chamfer_loss, edge_loss, pin_loss

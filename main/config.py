@@ -74,7 +74,8 @@ USE_LAYER_NORM = True
 ##########################################
 
 LAMBDA_RMSE = 2
-LAMBDA_EDGE = 1    # Weight for Spring Constraint (Edge Length)
+LAMBDA_CHAMFER = 10
+LAMBDA_EDGE = 5    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 

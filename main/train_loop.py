@@ -194,7 +194,7 @@ def trainModel(train_set, test_set, device):
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
             curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
             
-            loss, mse, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
+            loss, mse, chamfer_loss, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
 
             # --- BACKWARD STEP ---
             loss.backward()
@@ -206,7 +206,7 @@ def trainModel(train_set, test_set, device):
             total_mse += mse.item()
             total_edge += edge_loss.item()
             total_pin += pin_loss.item()
-            loop.set_postfix(loss=loss.item(), mse=mse.item(), edge=edge_loss.item(), pin=pin_loss.item())
+            loop.set_postfix(loss=loss.item(), mse=mse.item(), chamfer=chamfer_loss.item(), edge=edge_loss.item(), pin=pin_loss.item())
 
         avg_train_loss = total_train_loss / len(train_loader)
 
