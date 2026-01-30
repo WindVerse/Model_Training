@@ -39,20 +39,20 @@ def export_onnx(model, save_path, device):
     
     # Dummy Input
     dummy_nodes = cfg.HEIGHT * cfg.WIDTH 
-    dummy_edges = dummy_nodes * 4
+    dummy_edges = 2 * ((cfg.HEIGHT - 1) * cfg.WIDTH + (cfg.WIDTH - 1) * cfg.HEIGHT)
     
     x_nodes = torch.randn(dummy_nodes, cfg.NODE_DIM, device=device)
     x_wind = torch.randn(dummy_nodes, cfg.WIND_DIM, device=device)
     edge_index = torch.randint(0, dummy_nodes, (2, dummy_edges), device=device).long()
     
-    input_names = ["x_nodes", "x_wind", "edge_index"]
-    output_names = ["acceleration"]
+    input_names = ["flag", "wind", "edges"]
+    output_names = ["output"]
     
     dynamic_axes = {
-        "x_nodes": {0: "num_nodes"},
-        "x_wind": {0: "num_nodes"},
-        "edge_index": {1: "num_edges"},
-        "acceleration": {0: "num_nodes"}
+        "flag": {0: "num_nodes"},
+        "wind": {0: "num_nodes"},
+        "edges": {1: "num_edges"},
+        "output": {0: "num_nodes"}
     }
     
     try:

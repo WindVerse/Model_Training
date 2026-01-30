@@ -14,7 +14,7 @@ if IS_TEST:
     DATASET_VERSION = 0
 else:
     DATASET_VERSION = 6
-TARGET_TYPE = "accelerations"                    # displacements, velocity_differences, accelerations
+TARGET_TYPE = "accelerations"                    # displacements, accelerations
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
 if IS_TEST:

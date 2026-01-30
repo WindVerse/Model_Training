@@ -92,9 +92,14 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
         
         pred_real_acc = pred_norm_acc * std_acc + mean_acc
         
-        next_pos, next_vel = integrate_semi_implicit_euler(
-            curr_pos, curr_vel, pred_real_acc, cfg.DELTA_T
-        )
+        if cfg.TARGET_TYPE == "accelerations":
+            next_pos, next_vel = integrate_semi_implicit_euler(
+                curr_pos, curr_vel, pred_real_acc, cfg.DELTA_T
+            )
+        elif cfg.TARGET_TYPE == "displacements":
+            disp = pred_real_acc
+            next_pos = curr_pos + disp
+            next_vel = disp / cfg.DELTA_T
         
         # --- B. Compute Metrics for this Frame ---
         
