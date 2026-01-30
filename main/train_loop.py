@@ -9,7 +9,7 @@ import config as cfg
 from validate.validateVis import validate_rollout
 from validate.validateMetric import validate_metrics
 from models.load_model import load_model
-from gen_details import generate_details
+from gen_summary import generate_details
 
 def get_next_version_dir(base_dir):
     """
@@ -38,8 +38,8 @@ def export_onnx(model, save_path, device):
     model.eval()
     
     # Dummy Input
-    dummy_nodes = 100 
-    dummy_edges = 200
+    dummy_nodes = cfg.HEIGHT * cfg.WIDTH 
+    dummy_edges = dummy_nodes * 4
     
     x_nodes = torch.randn(dummy_nodes, cfg.NODE_DIM, device=device)
     x_wind = torch.randn(dummy_nodes, cfg.WIND_DIM, device=device)
