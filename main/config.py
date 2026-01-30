@@ -42,7 +42,7 @@ BASE_DATASET_PATH = "../../datasets/"
 ########### Model Hyperparameters #######
 #########################################
 
-MODEL = "GNN"                                    # 'GNN', add more later
+MODEL = "GNN_ATTENTION"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
 if IS_TEST:
     EPOCHS = 10
@@ -64,6 +64,8 @@ GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
 DROPOUT_RATE = 0.1
 ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
 USE_LAYER_NORM = True
+
+NUM_ATTENTION_HEADS = 4                            # For GNN with Attention
 
 
 

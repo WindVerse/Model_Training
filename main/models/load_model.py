@@ -3,7 +3,7 @@
 import config as cfg
 
 def load_model(device):
-    if cfg.MODEL == 'GNN':
+    if cfg.MODEL == 'GNN' | cfg.MODEL == 'GNN_ATTENTION':
         from models.GNN import FlagGraphNet as ModelClass
         model = ModelClass(
             in_node_dim=cfg.NODE_DIM,
