@@ -48,7 +48,7 @@ if IS_TEST:
     EPOCHS = 5
 else:
     EPOCHS = 10
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 
 SEQUENCE_LENGTH = 10
@@ -62,7 +62,7 @@ else:
     HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
 DROPOUT_RATE = 0.1
-ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
+ACTIVATION = 'ReLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
 USE_LAYER_NORM = True
 
 
@@ -73,9 +73,9 @@ USE_LAYER_NORM = True
 ########### Loss Hyperparameters #########
 ##########################################
 
-LAMBDA_RMSE = 2
-LAMBDA_CHAMFER = 10
-LAMBDA_EDGE = 5    # Weight for Spring Constraint (Edge Length)
+LAMBDA_RMSE = 1
+LAMBDA_CHAMFER = 100
+LAMBDA_EDGE = 100    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 
