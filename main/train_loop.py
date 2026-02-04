@@ -9,7 +9,7 @@ import config as cfg
 from validate.validateVis import validate_rollout
 from validate.validateMetric import validate_metrics
 from models.load_model import load_model
-from gen_details import generate_details
+from gen_summary import generate_details
 
 def get_next_version_dir(base_dir):
     """
@@ -38,21 +38,21 @@ def export_onnx(model, save_path, device):
     model.eval()
     
     # Dummy Input
-    dummy_nodes = 100 
-    dummy_edges = 200
+    dummy_nodes = cfg.HEIGHT * cfg.WIDTH 
+    dummy_edges = 2 * ((cfg.HEIGHT - 1) * cfg.WIDTH + (cfg.WIDTH - 1) * cfg.HEIGHT)
     
     x_nodes = torch.randn(dummy_nodes, cfg.NODE_DIM, device=device)
     x_wind = torch.randn(dummy_nodes, cfg.WIND_DIM, device=device)
     edge_index = torch.randint(0, dummy_nodes, (2, dummy_edges), device=device).long()
     
-    input_names = ["x_nodes", "x_wind", "edge_index"]
-    output_names = ["acceleration"]
+    input_names = ["flag", "wind", "edges"]
+    output_names = ["output"]
     
     dynamic_axes = {
-        "x_nodes": {0: "num_nodes"},
-        "x_wind": {0: "num_nodes"},
-        "edge_index": {1: "num_edges"},
-        "acceleration": {0: "num_nodes"}
+        "flag": {0: "num_nodes"},
+        "wind": {0: "num_nodes"},
+        "edges": {1: "num_edges"},
+        "output": {0: "num_nodes"}
     }
     
     try:
@@ -194,7 +194,7 @@ def trainModel(train_set, test_set, device):
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
             curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
             
-            loss, mse, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
+            loss, mse, chamfer_loss, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
 
             # --- BACKWARD STEP ---
             loss.backward()
@@ -206,7 +206,7 @@ def trainModel(train_set, test_set, device):
             total_mse += mse.item()
             total_edge += edge_loss.item()
             total_pin += pin_loss.item()
-            loop.set_postfix(loss=loss.item(), mse=mse.item(), edge=edge_loss.item(), pin=pin_loss.item())
+            loop.set_postfix(loss=loss.item(), mse=mse.item(), chamfer=chamfer_loss.item(), edge=edge_loss.item(), pin=pin_loss.item())
 
         avg_train_loss = total_train_loss / len(train_loader)
 

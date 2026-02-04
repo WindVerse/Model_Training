@@ -90,10 +90,16 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
         # De-normalize Acceleration
         pred_real_acc = pred_norm_acc * std_acc + mean_acc
         
-        # Integrate (Pure Physics, No Pinning Constraints)
-        next_pos, next_vel = integrate_semi_implicit_euler(
-            curr_pos, curr_vel, pred_real_acc, cfg.DELTA_T
-        )
+        if cfg.TARGET_TYPE == "accelerations":
+            next_pos, next_vel = integrate_semi_implicit_euler(
+                curr_pos, curr_vel, pred_real_acc, cfg.DELTA_T
+            )
+        elif cfg.TARGET_TYPE == "displacements":
+            disp = pred_real_acc
+            next_pos = curr_pos + disp
+            next_vel = disp / cfg.DELTA_T
+        else:
+            raise ValueError(f"Unknown TARGET_TYPE: {cfg.TARGET_TYPE}")
         
         # Store for visualization
         predictions.append(curr_pos.cpu().numpy())
@@ -142,7 +148,7 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
         txt.set_text(f"Frame: {frame}/{len(ground_truth)}")
         return scat1, scat2
 
-    ani = animation.FuncAnimation(fig, update, frames=len(ground_truth), interval=50, blit=False)
+    ani = animation.FuncAnimation(fig, update, frames=len(ground_truth), interval=1000*cfg.DELTA_T, blit=False)
     
     # Save
     save_dir = os.path.join(cfg.DATASET_DIR, "models", model_ver)
@@ -163,6 +169,6 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
 
 if __name__ == "__main__":    
     train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO) 
-    validate_rollout(dataset=test, model_ver="023", run_index=0, sub_dir="temp")
+    validate_rollout(dataset=test, model_ver="039", run_index=0, sub_dir="temp")
     # for run_idx in range(0, 20):
     #     validate_rollout(dataset=test, model_ver="005", run_index=run_idx, sub_dir="temp")

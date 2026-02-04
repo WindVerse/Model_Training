@@ -14,7 +14,7 @@ if IS_TEST:
     DATASET_VERSION = 0
 else:
     DATASET_VERSION = 6
-TARGET_TYPE = "accelerations"                    # displacements, velocity_differences, accelerations
+TARGET_TYPE = "accelerations"                    # displacements, accelerations
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
 if IS_TEST:
@@ -45,7 +45,7 @@ BASE_DATASET_PATH = "../../datasets/"
 MODEL = "GNN"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
 if IS_TEST:
-    EPOCHS = 10
+    EPOCHS = 5
 else:
     EPOCHS = 10
 LEARNING_RATE = 0.001
@@ -55,7 +55,7 @@ SEQUENCE_LENGTH = 10
 if IS_TEST:
     NO_MLP_HIDDEN_LAYERS = 2
     NO_GNN_LAYERS = 2
-    HIDDEN_DIM = 16
+    HIDDEN_DIM = 128
 else:
     NO_MLP_HIDDEN_LAYERS = 5
     NO_GNN_LAYERS = 5
@@ -73,8 +73,9 @@ USE_LAYER_NORM = True
 ########### Loss Hyperparameters #########
 ##########################################
 
-LAMBDA_RMSE = 1
-LAMBDA_EDGE = 0    # Weight for Spring Constraint (Edge Length)
+LAMBDA_RMSE = 2
+LAMBDA_CHAMFER = 10
+LAMBDA_EDGE = 5    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 

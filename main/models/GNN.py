@@ -79,6 +79,26 @@ class FlagGraphNet(nn.Module):
 
         # Decoder
         self.decoder = MLP(hidden_dim, 3, hidden_dim) 
+        
+        # ====================================================
+        # INTERNAL MASK GENERATION (HARD PINNING)
+        # ====================================================
+        H, W = cfg.HEIGHT, cfg.WIDTH
+        self.num_nodes_per_flag = H * W
+        
+        # 1. Create Base Mask (N, 1)
+        # 1.0 = Pinned (Acc forced to 0), 0.0 = Free
+        mask = torch.zeros((self.num_nodes_per_flag, 1))
+        
+        # Pin Column 0 (Indices: 0, W, 2W...)
+        # This matches the "Row-Major" flattening logic
+        for r in range(H):
+            idx = r * W
+            mask[idx, 0] = 1.0
+            
+        # 2. Register as buffer
+        # This saves 'pinned_mask' to state_dict and moves it to device automatically
+        self.register_buffer('pinned_mask', mask)
 
     def forward(self, x_nodes, x_wind, edge_index):
         # 1. Feature Engineering
@@ -104,4 +124,19 @@ class FlagGraphNet(nn.Module):
             x = layer(x, edge_index, edge_attr)
 
         # 4. Decode
-        return self.decoder(x)
+        out = self.decoder(x)
+        
+        
+        # 5. Hard Pinning
+        
+        current_batch_nodes = x_nodes.shape[0]
+        num_flags_in_batch = current_batch_nodes // self.num_nodes_per_flag
+        
+        # Repeat mask: (N, 1) -> (Batch*N, 1)
+        full_mask = self.pinned_mask.repeat(num_flags_in_batch, 1)
+        
+        # Apply: (1.0 - 1.0) = 0.0 for Pinned
+        #        (1.0 - 0.0) = 1.0 for Free
+        out = out * (1.0 - full_mask)
+        
+        return out
