@@ -42,7 +42,7 @@ BASE_DATASET_PATH = "../../datasets/"
 ########### Model Hyperparameters #######
 #########################################
 
-MODEL = "GNN"                                    # 'GNN', add more later
+MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
 if IS_TEST:
     EPOCHS = 5
@@ -53,16 +53,16 @@ BATCH_SIZE = 4
 
 SEQUENCE_LENGTH = 10
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 2
+    NO_MLP_HIDDEN_LAYERS = 3
     NO_GNN_LAYERS = 2
-    HIDDEN_DIM = 128
+    HIDDEN_DIM = 64
 else:
     NO_MLP_HIDDEN_LAYERS = 5
     NO_GNN_LAYERS = 5
     HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
 DROPOUT_RATE = 0.1
-ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
+ACTIVATION = 'ReLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
 USE_LAYER_NORM = True
 
 
@@ -73,9 +73,9 @@ USE_LAYER_NORM = True
 ########### Loss Hyperparameters #########
 ##########################################
 
-LAMBDA_RMSE = 2
-LAMBDA_CHAMFER = 10
-LAMBDA_EDGE = 5    # Weight for Spring Constraint (Edge Length)
+LAMBDA_RMSE = 1
+LAMBDA_POSITION = 1000
+LAMBDA_EDGE = 100    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 
@@ -104,7 +104,7 @@ SCHEDULER = 'ReduceLROnPlateau' # Options: 'ReduceLROnPlateau', 'StepLR', 'None'
 # 1. ReduceLROnPlateau (Reduces LR when validation loss stops improving)
 SCHEDULER_FACTOR = 0.5      # Multiply LR by this factor
 SCHEDULER_PATIENCE = 5      # How many epochs to wait before reducing
-SCHEDULER_MODE = 'min'    # 'min' or 'max' based on monitored metric
+SCHEDULER_MODE = 'min'      # 'min' or 'max' based on monitored metric
 # 2. StepLR (Reduces LR every X epochs)
 SCHEDULER_STEP_SIZE = 10    # Decay every 10 epochs
 SCHEDULER_GAMMA = 0.1       # Decay rate

@@ -4,12 +4,14 @@ import torch.optim as optim
 import os
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 import config as cfg
 from validate.validateVis import validate_rollout
 from validate.validateMetric import validate_metrics
 from models.load_model import load_model
 from gen_summary import generate_details
+from loss.get_loss import getLoss
 
 def get_next_version_dir(base_dir):
     """
@@ -92,6 +94,7 @@ def setup_optimization(model):
     else:
         raise ValueError(f"Unknown SCHEDULER: {cfg.SCHEDULER}")
 
+    print(f"Optimizer: {optimizer} | Scheduler: {scheduler}")
     return optimizer, scheduler
 
 def trainModel(train_set, test_set, device):
@@ -116,18 +119,7 @@ def trainModel(train_set, test_set, device):
     # 2. LOSS INITIALIZATION
     # ==========================================
     print(f"Initializing Loss: {cfg.LOSS}...")
-    
-    if cfg.LOSS == 'physicsLoss':
-        from loss.physics_loss import PhysicsLoss
-        initial_pos_ref = train_set.data_flags[0][0, :, :3] 
-        criterion = PhysicsLoss(
-            initial_flag_pos=initial_pos_ref,
-            mean=train_set.stats['target_mean'],
-            std=train_set.stats['target_std'],
-            device=device
-        )
-    else:
-        raise ValueError(f"Unknown LOSS in config: {cfg.LOSS}")
+    criterion = getLoss(train_set, device)
 
     # ==========================================
     # 3. OPTIMIZER & SCHEDULER SETUP
@@ -148,27 +140,45 @@ def trainModel(train_set, test_set, device):
     best_loss = float('inf')  # Track Training Loss
     print(f"Starting training for {cfg.EPOCHS} epochs...")
     
+    total_lost_history = []
+    mse_history = []
+    edge_history = []
+    pin_history = []
+    positional_loss_history = []
+    
+    stats = train_set.stats
+    pos_mean = stats['flag_mean'].to(device).view(1, 1, -1)[..., :3]
+    pos_std  = stats['flag_std'].to(device).view(1, 1, -1)[..., :3]
+    vel_mean = stats['flag_mean'].to(device).view(1, 1, -1)[..., 3:6]
+    vel_std  = stats['flag_std'].to(device).view(1, 1, -1)[..., 3:6]
+    
     for epoch in range(cfg.EPOCHS):
         model.train()
         total_train_loss = 0
         total_mse = 0
         total_pin = 0
         total_edge = 0
+        total_pos_loss = 0
         
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.EPOCHS} [Train]")
         
-        for batch_idx, (flag_seq, wind_seq, target_seq) in enumerate(loop):
+        for batch_idx, (flag_seq, wind_seq, target_seq, next_flag_seq) in enumerate(loop):
             # Move to device
             flag_seq = flag_seq.to(device)
             wind_seq = wind_seq.to(device)
             target_seq = target_seq.to(device)
-
+            next_flag_pos = next_flag_seq[..., :3].to(device)
+            next_flag_vel = next_flag_seq[..., 3:6].to(device)
+            
             # --- PREPARE DATA FOR GNN ---
             B, T, N, F = flag_seq.shape
             
             x_nodes = flag_seq.view(B * T, N, F)
             x_wind_raw = wind_seq.view(B * T, 8, 3)
             y_target = target_seq.view(B * T, N, 3)
+            next_flag_pos = next_flag_pos.view(B * T, N, 3)
+            next_flag_vel = next_flag_vel.view(B * T, N, 3)
+            
 
             x_wind_mean = x_wind_raw.mean(dim=1) 
             x_wind_expanded = x_wind_mean.unsqueeze(1).repeat(1, N, 1)
@@ -191,10 +201,22 @@ def trainModel(train_set, test_set, device):
             pred_reshaped = pred_accel.view(B*T, N, 3)
             target_reshaped = y_target_flat.view(B*T, N, 3)
             
-            curr_pos = flag_seq[..., :3].view(B*T, N, 3)
-            curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
+            curr_pos_norm = flag_seq[..., :3].view(B*T, N, 3)
+            curr_vel_norm = flag_seq[..., 3:6].view(B*T, N, 3)
             
-            loss, mse, chamfer_loss, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
+            curr_pos = (curr_pos_norm * pos_std) + pos_mean
+            curr_vel = (curr_vel_norm * vel_std) + vel_mean
+            
+                        
+            loss, mse, positional_loss, edge_loss, pin_loss = criterion(
+                pred_reshaped,
+                target_reshaped,
+                curr_pos,
+                curr_vel,
+                next_flag_pos,
+                next_flag_vel
+            )
+
 
             # --- BACKWARD STEP ---
             loss.backward()
@@ -206,9 +228,21 @@ def trainModel(train_set, test_set, device):
             total_mse += mse.item()
             total_edge += edge_loss.item()
             total_pin += pin_loss.item()
-            loop.set_postfix(loss=loss.item(), mse=mse.item(), chamfer=chamfer_loss.item(), edge=edge_loss.item(), pin=pin_loss.item())
+            total_pos_loss += positional_loss.item()
+            loop.set_postfix(loss=loss.item(), mse=mse.item(), position=positional_loss.item(), edge=edge_loss.item(), pin=pin_loss.item())
 
         avg_train_loss = total_train_loss / len(train_loader)
+        avg_mse = total_mse / len(train_loader)
+        avg_pos = total_pos_loss / len(train_loader)
+        avg_edge = total_edge / len(train_loader)
+        avg_pin = total_pin / len(train_loader)
+        
+        total_lost_history.append(avg_train_loss)
+        mse_history.append(avg_mse * cfg.LAMBDA_RMSE)
+        positional_loss_history.append(avg_pos * cfg.LAMBDA_POSITION)
+        edge_history.append(avg_edge * cfg.LAMBDA_EDGE)
+        pin_history.append(avg_pin * cfg.LAMBDA_PIN)
+        
 
         # ==========================================
         # 5. SCHEDULER & SAVING (Using Train Loss)
@@ -237,6 +271,28 @@ def trainModel(train_set, test_set, device):
             
             # 2. Save ONNX
             export_onnx(model, onnx_path, device)
+    
+    # ==========================================
+    # Save epoch histories graphs
+    # ==========================================
+    
+    epoch_history_path = os.path.join(run_dir, "training_history.png")
+    plt.figure(figsize=(12, 5))
+    epochs = np.arange(1, cfg.EPOCHS + 1)
+    # save all 5 histories in one plot
+    plt.plot(epochs, total_lost_history, label='Train Loss')
+    plt.plot(epochs, mse_history, label=f"MSE x {cfg.LAMBDA_RMSE}")
+    plt.plot(epochs, positional_loss_history, label=f"Positional Loss x {cfg.LAMBDA_POSITION}")
+    plt.plot(epochs, edge_history, label=f"Edge Loss x {cfg.LAMBDA_EDGE}")
+    plt.plot(epochs, pin_history, label=f"Pin Loss x {cfg.LAMBDA_PIN}")
+    plt.title('Training History')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig(epoch_history_path)
+    print(f"📈 Training history plot saved to: {epoch_history_path}")
+    plt.close()
+
 
     # ==========================================
     # 6. RELOAD BEST WEIGHTS
@@ -257,8 +313,9 @@ def trainModel(train_set, test_set, device):
     unique_test_runs = sorted(list(set([sample[0] for sample in test_set.samples])))
     print(f"Found {len(unique_test_runs)} unique runs in Test Set: {unique_test_runs}")
     
-    avg_rmse = 0
-    avg_edge_err = 0
+    test_rmse_history = []
+    test_edge_error_history = []
+
     for run_idx in unique_test_runs:
         validate_rollout(
             dataset=test_set, 
@@ -270,14 +327,14 @@ def trainModel(train_set, test_set, device):
             model_ver=model_ver,
             run_index=run_idx
         )
-        avg_rmse += avg_rmse_per_run
-        avg_edge_err += avg_edge_err_per_run
+        test_rmse_history.append(avg_rmse_per_run)
+        test_edge_error_history.append(avg_edge_err_per_run)
     
     # Save Training Details
     details = generate_details(
         train_loss=best_loss,
-        test_rmse=avg_rmse,
-        test_edge_err=avg_edge_err
+        test_rmse=np.mean(test_rmse_history),
+        test_edge_err=np.mean(test_edge_error_history)
     )
     details_path = os.path.join(run_dir, "summary.txt")
     with open(details_path, 'w') as f:

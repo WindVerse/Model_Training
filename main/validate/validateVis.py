@@ -11,14 +11,19 @@ import config as cfg
 from dataset_helpers.dataset import FlagWindDataset
 from models.load_model import load_model
 
-def integrate_semi_implicit_euler(pos, vel, accel, dt):
+def integrate(pos, vel, accel):
     """
-    Standard Physics Integration without manual constraints.
-    v_{t+1} = v_t + a * dt
-    p_{t+1} = p_t + v_{t+1} * dt
+    Matches the 'PhysicsLoss' training logic:
+    P_{t+1} = P_t + V_t*dt + 0.5*A*dt^2
     """
-    new_vel = vel + accel * dt
-    new_pos = pos + new_vel * dt
+    dt = cfg.DELTA_T
+    # 1. Update Position (using Old Velocity + 0.5 * Accel)
+    # This matches the Taylor expansion used in your Loss Function
+    new_pos = pos + (vel * dt) + (0.5 * accel * (dt ** 2))
+    
+    # 2. Update Velocity
+    new_vel = vel + (accel * dt)
+    
     return new_pos, new_vel
 
 def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
@@ -91,8 +96,8 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
         pred_real_acc = pred_norm_acc * std_acc + mean_acc
         
         if cfg.TARGET_TYPE == "accelerations":
-            next_pos, next_vel = integrate_semi_implicit_euler(
-                curr_pos, curr_vel, pred_real_acc, cfg.DELTA_T
+            next_pos, next_vel = integrate(
+                curr_pos, curr_vel, pred_real_acc
             )
         elif cfg.TARGET_TYPE == "displacements":
             disp = pred_real_acc

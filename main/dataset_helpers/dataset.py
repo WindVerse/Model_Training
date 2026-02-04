@@ -29,10 +29,16 @@ class FlagWindDataset(Dataset):
         flag = self.data_flags[run_idx][start_frame:end_frame]
         wind = self.data_winds[run_idx][start_frame:end_frame]
         target = self.data_targets[run_idx][start_frame:end_frame]
+        next_flag = self.data_flags[run_idx][start_frame + 1:end_frame + 1]
 
         flag = torch.from_numpy(flag).float()
         wind = torch.from_numpy(wind).float()
         target = torch.from_numpy(target).float()
+        next_flag = torch.from_numpy(next_flag).float()
+
+        return flag, wind, target, next_flag
+
+    def normalize(self, flag, wind, target):
 
         # Normalize (using Pre-calculated Stats)
         if self.stats:
@@ -101,7 +107,7 @@ class FlagWindDataset(Dataset):
         # Logic: Iterate through loaded data metadata
         for run_idx, iteration in run_metadata:
             num_frames = len(all_flags[run_idx])
-            valid_starts = num_frames - sequence_length + 1
+            valid_starts = num_frames - sequence_length
             
             for start_t in range(valid_starts):
                 sample = (run_idx, start_t)
