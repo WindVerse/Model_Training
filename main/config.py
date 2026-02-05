@@ -47,7 +47,7 @@ LOSS = "physicsLoss"                                  # 'physicsLoss', add more 
 if IS_TEST:
     EPOCHS = 5
 else:
-    EPOCHS = 10
+    EPOCHS = 20
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 
@@ -57,11 +57,11 @@ if IS_TEST:
     NO_GNN_LAYERS = 2
     HIDDEN_DIM = 64
 else:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
+    NO_MLP_HIDDEN_LAYERS = 6
+    NO_GNN_LAYERS = 6
     HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
-DROPOUT_RATE = 0.1
+DROPOUT_RATE = 0.15
 ACTIVATION = 'ReLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
 USE_LAYER_NORM = True
 
@@ -74,7 +74,7 @@ USE_LAYER_NORM = True
 ##########################################
 
 LAMBDA_RMSE = 1
-LAMBDA_CHAMFER = 10
+LAMBDA_CHAMFER = 100
 LAMBDA_EDGE = 50    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
