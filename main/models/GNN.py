@@ -3,14 +3,7 @@ import torch.nn as nn
 from torch_geometric.nn import MessagePassing
 
 import config as cfg
-
-def get_activation(name):
-    """Helper to map config string to PyTorch class"""
-    if name == 'ReLU': return nn.ReLU()
-    if name == 'SiLU': return nn.SiLU()
-    if name == 'Tanh': return nn.Tanh()
-    if name == 'LeakyReLU': return nn.LeakyReLU()
-    raise ValueError(f"Unknown activation: {name}")
+import models.model_helpers.model_helpers as helpers
 
 class MLP(nn.Module):
     def __init__(self, in_dim, out_dim, hidden_dim=cfg.HIDDEN_DIM, num_layers=cfg.NO_MLP_HIDDEN_LAYERS):
@@ -20,14 +13,14 @@ class MLP(nn.Module):
         # Input Layer
         layers.append(nn.Linear(in_dim, hidden_dim))
         if cfg.USE_LAYER_NORM: layers.append(nn.LayerNorm(hidden_dim))
-        layers.append(get_activation(cfg.ACTIVATION))
+        layers.append(helpers.get_activation(cfg.ACTIVATION))
         layers.append(nn.Dropout(cfg.DROPOUT_RATE)) # NEW: Dropout
         
         # Hidden Layers
         for _ in range(num_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             if cfg.USE_LAYER_NORM: layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(get_activation(cfg.ACTIVATION))
+            layers.append(helpers.get_activation(cfg.ACTIVATION))
             layers.append(nn.Dropout(cfg.DROPOUT_RATE)) # NEW: Dropout
             
         # Output Layer
