@@ -14,7 +14,7 @@ if IS_TEST:
     DATASET_VERSION = 0
 else:
     DATASET_VERSION = 6
-TARGET_TYPE = "accelerations"                    # displacements, velocity_differences, accelerations
+TARGET_TYPE = "accelerations"                    # displacements, accelerations
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
 if IS_TEST:
@@ -44,25 +44,27 @@ BASE_DATASET_PATH = "../../datasets/"
 
 MODEL = "GNN_ATTENTION"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
+MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
+LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
 if IS_TEST:
-    EPOCHS = 10
+    EPOCHS = 5
 else:
-    EPOCHS = 10
-LEARNING_RATE = 0.001
+    EPOCHS = 20
+LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 
 SEQUENCE_LENGTH = 10
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 2
+    NO_MLP_HIDDEN_LAYERS = 3
     NO_GNN_LAYERS = 2
-    HIDDEN_DIM = 16
+    HIDDEN_DIM = 64
 else:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
+    NO_MLP_HIDDEN_LAYERS = 6
+    NO_GNN_LAYERS = 6
     HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
-DROPOUT_RATE = 0.1
-ACTIVATION = 'SiLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
+DROPOUT_RATE = 0.15
+ACTIVATION = 'ReLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
 USE_LAYER_NORM = True
 
 NUM_ATTENTION_HEADS = 4                            # For GNN with Attention
@@ -76,7 +78,8 @@ NUM_ATTENTION_HEADS = 4                            # For GNN with Attention
 ##########################################
 
 LAMBDA_RMSE = 1
-LAMBDA_EDGE = 0    # Weight for Spring Constraint (Edge Length)
+LAMBDA_CHAMFER = 100
+LAMBDA_EDGE = 50    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 
@@ -105,7 +108,7 @@ SCHEDULER = 'ReduceLROnPlateau' # Options: 'ReduceLROnPlateau', 'StepLR', 'None'
 # 1. ReduceLROnPlateau (Reduces LR when validation loss stops improving)
 SCHEDULER_FACTOR = 0.5      # Multiply LR by this factor
 SCHEDULER_PATIENCE = 5      # How many epochs to wait before reducing
-SCHEDULER_MODE = 'min'    # 'min' or 'max' based on monitored metric
+SCHEDULER_MODE = 'min'      # 'min' or 'max' based on monitored metric
 # 2. StepLR (Reduces LR every X epochs)
 SCHEDULER_STEP_SIZE = 10    # Decay every 10 epochs
 SCHEDULER_GAMMA = 0.1       # Decay rate

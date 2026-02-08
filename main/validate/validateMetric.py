@@ -9,10 +9,23 @@ import config as cfg
 from dataset_helpers.dataset import FlagWindDataset
 from models.load_model import load_model
 
-def integrate_semi_implicit_euler(pos, vel, accel, dt):
-    """Standard Physics Integration"""
-    new_vel = vel + accel * dt
-    new_pos = pos + new_vel * dt
+# def integrate_semi_implicit_euler(pos, vel, accel, dt):
+#     """Standard Physics Integration"""
+#     new_vel = vel + accel * dt
+#     new_pos = pos + new_vel * dt
+#     return new_pos, new_vel
+def integrate(pos, vel, accel, dt):
+    """
+    Matches the 'PhysicsLoss' training logic:
+    P_{t+1} = P_t + V_t*dt + 0.5*A*dt^2
+    """
+    # 1. Update Position (using Old Velocity + 0.5 * Accel)
+    # This matches the Taylor expansion used in your Loss Function
+    new_pos = pos + (vel * dt) + (0.5 * accel * (dt ** 2))
+    
+    # 2. Update Velocity
+    new_vel = vel + (accel * dt)
+    
     return new_pos, new_vel
 
 def calculate_edge_lengths(pos, edge_index):
@@ -92,9 +105,14 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
         
         pred_real_acc = pred_norm_acc * std_acc + mean_acc
         
-        next_pos, next_vel = integrate_semi_implicit_euler(
-            curr_pos, curr_vel, pred_real_acc, cfg.DELTA_T
-        )
+        if cfg.TARGET_TYPE == "accelerations":
+            next_pos, next_vel = integrate(
+                curr_pos, curr_vel, pred_real_acc, cfg.DELTA_T
+            )
+        elif cfg.TARGET_TYPE == "displacements":
+            disp = pred_real_acc
+            next_pos = curr_pos + disp
+            next_vel = disp / cfg.DELTA_T
         
         # --- B. Compute Metrics for this Frame ---
         

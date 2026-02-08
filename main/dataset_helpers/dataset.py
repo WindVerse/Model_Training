@@ -129,6 +129,14 @@ class FlagWindDataset(Dataset):
         stats['flag_mean'], stats['flag_std'] = compute_stats(all_flags, train_indices)
         stats['wind_mean'], stats['wind_std'] = compute_stats(all_winds, train_indices)
         stats['target_mean'], stats['target_std'] = compute_stats(all_targets, train_indices)
+        
+        # Save Stats for Later Use
+        stats_path = os.path.join(cfg.DATASET_DIR, f"stats{'Test' if cfg.IS_TEST else ''}.txt")
+        os.makedirs(os.path.dirname(stats_path), exist_ok=True)
+        with open(stats_path, 'w') as f:
+            f.write(str(stats))
+            f.close()
+        print(f"Statistics Calculated and Saved to {stats_path}.")
 
         # Create Dataset Objects
         

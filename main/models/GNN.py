@@ -3,14 +3,7 @@ import torch.nn as nn
 from torch_geometric.nn import MessagePassing
 
 import config as cfg
-
-def get_activation(name):
-    """Helper to map config string to PyTorch class"""
-    if name == 'ReLU': return nn.ReLU()
-    if name == 'SiLU': return nn.SiLU()
-    if name == 'Tanh': return nn.Tanh()
-    if name == 'LeakyReLU': return nn.LeakyReLU()
-    raise ValueError(f"Unknown activation: {name}")
+import models.model_helpers.model_helpers as helpers
 
 class MLP(nn.Module):
     def __init__(self, in_dim, out_dim, hidden_dim=cfg.HIDDEN_DIM, num_layers=cfg.NO_MLP_HIDDEN_LAYERS):
@@ -20,14 +13,14 @@ class MLP(nn.Module):
         # Input Layer
         layers.append(nn.Linear(in_dim, hidden_dim))
         if cfg.USE_LAYER_NORM: layers.append(nn.LayerNorm(hidden_dim))
-        layers.append(get_activation(cfg.ACTIVATION))
+        layers.append(helpers.get_activation(cfg.ACTIVATION))
         layers.append(nn.Dropout(cfg.DROPOUT_RATE)) # NEW: Dropout
         
         # Hidden Layers
         for _ in range(num_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             if cfg.USE_LAYER_NORM: layers.append(nn.LayerNorm(hidden_dim))
-            layers.append(get_activation(cfg.ACTIVATION))
+            layers.append(helpers.get_activation(cfg.ACTIVATION))
             layers.append(nn.Dropout(cfg.DROPOUT_RATE)) # NEW: Dropout
             
         # Output Layer
@@ -79,6 +72,26 @@ class FlagGraphNet(nn.Module):
 
         # Decoder
         self.decoder = MLP(hidden_dim, 3, hidden_dim) 
+        
+        # ====================================================
+        # INTERNAL MASK GENERATION (HARD PINNING)
+        # ====================================================
+        H, W = cfg.HEIGHT, cfg.WIDTH
+        self.num_nodes_per_flag = H * W
+        
+        # 1. Create Base Mask (N, 1)
+        # 1.0 = Pinned (Acc forced to 0), 0.0 = Free
+        mask = torch.zeros((self.num_nodes_per_flag, 1))
+        
+        # Pin Column 0 (Indices: 0, W, 2W...)
+        # This matches the "Row-Major" flattening logic
+        for r in range(H):
+            idx = r * W
+            mask[idx, 0] = 1.0
+            
+        # 2. Register as buffer
+        # This saves 'pinned_mask' to state_dict and moves it to device automatically
+        self.register_buffer('pinned_mask', mask)
 
     def forward(self, x_nodes, x_wind, edge_index):
         # 1. Feature Engineering
@@ -104,4 +117,19 @@ class FlagGraphNet(nn.Module):
             x = layer(x, edge_index, edge_attr)
 
         # 4. Decode
-        return self.decoder(x)
+        out = self.decoder(x)
+        
+        
+        # 5. Hard Pinning
+        
+        current_batch_nodes = x_nodes.shape[0]
+        num_flags_in_batch = current_batch_nodes // self.num_nodes_per_flag
+        
+        # Repeat mask: (N, 1) -> (Batch*N, 1)
+        full_mask = self.pinned_mask.repeat(num_flags_in_batch, 1)
+        
+        # Apply: (1.0 - 1.0) = 0.0 for Pinned
+        #        (1.0 - 0.0) = 1.0 for Free
+        out = out * (1.0 - full_mask)
+        
+        return out
