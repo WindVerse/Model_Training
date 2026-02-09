@@ -42,10 +42,8 @@ BASE_DATASET_PATH = "../../datasets/"
 ########### Model Hyperparameters #######
 #########################################
 
-MODEL = "GNN_ATTENTION"                                    # 'GNN', add more later
 LOSS = "physicsLoss"                             # 'physicsLoss', add more later
-MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
-LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
+MODEL = "SNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
 if IS_TEST:
     EPOCHS = 5
 else:

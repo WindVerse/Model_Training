@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import torch.nn as nn
 import os
 import numpy as np
 from tqdm import tqdm
@@ -153,6 +154,11 @@ def trainModel(train_set, test_set, device):
         total_pin = 0
         total_edge = 0
         total_chamfer = 0
+
+        wind_attention = torch.nn.MultiheadAttention(embed_dim=16, num_heads=2, batch_first=True).to(device)
+        flag_proj = torch.nn.Linear(cfg.NODE_DIM, 16).to(device)
+        wind_proj = torch.nn.Linear(cfg.WIND_DIM, 16).to(device)
+        wind_out_proj = torch.nn.Linear(16, cfg.WIND_DIM).to(device) 
         
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.EPOCHS} [Train]")
         
@@ -169,11 +175,19 @@ def trainModel(train_set, test_set, device):
             x_wind_raw = wind_seq.view(B * T, 8, 3)
             y_target = target_seq.view(B * T, N, 3)
 
-            x_wind_mean = x_wind_raw.mean(dim=1) 
-            x_wind_expanded = x_wind_mean.unsqueeze(1).repeat(1, N, 1)
+            # --- Project flag nodes and wind points ---
+            x_nodes_proj = flag_proj(x_nodes)        # (B*T, N, 16)
+            x_wind_proj = wind_proj(x_wind_raw)      # (B*T, 8, 16)
+
+            # --- Apply Multihead Attention ---
+            # Query = flag nodes, Key/Value = wind points
+            x_wind_attended, _ = wind_attention(query=x_nodes_proj, key=x_wind_proj, value=x_wind_proj)  # (B*T, N, 16)
+
+            # --- Project back to original wind dim (3D) ---
+            x_wind_final = wind_out_proj(x_wind_attended)  # (B*T, N, 3)
 
             x_nodes_flat = x_nodes.view(-1, F)
-            x_wind_flat = x_wind_expanded.view(-1, 3)
+            x_wind_flat = x_wind_final.view(-1, 3)
             y_target_flat = y_target.view(-1, 3)
 
             # --- PREPARE BATCH EDGES ---
