@@ -45,9 +45,9 @@ BASE_DATASET_PATH = "../../datasets/"
 MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
 LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
 if IS_TEST:
-    EPOCHS = 2
+    EPOCHS = 3
 else:
-    EPOCHS = 15
+    EPOCHS = 10
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 

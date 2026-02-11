@@ -42,7 +42,7 @@ def calculate_edge_lengths(pos, edge_index):
     # Euclidean distance
     return torch.norm(vec, dim=1)
 
-def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
+def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"📊 Starting Numerical Validation for Run {run_index+1}...")
 
@@ -53,11 +53,12 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None):
     total_frames = gt_flags.shape[0]
     num_nodes = gt_flags.shape[1]
 
-    # 2. Load Model
-    model = load_model(device)
+    if model is None:
+        # 2. Load Model
+        model = load_model(device)
+        model_path = os.path.join(cfg.DATASET_DIR, "models", model_ver, "best_model.pth")
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     
-    model_path = os.path.join(cfg.DATASET_DIR, "models", model_ver, "best_model.pth")
-    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
 
     # 3. Load Topology (For Edge Error)

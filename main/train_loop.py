@@ -230,6 +230,8 @@ def trainModel(train_set, test_set, device):
     pin_history = []
     chamfer_loss_history = []
 
+    validation_rmse_history = []
+    validation_edge_history = []
     
     for epoch in range(cfg.EPOCHS):
         model.train()
@@ -341,6 +343,31 @@ def trainModel(train_set, test_set, device):
             
             # 2. Save ONNX
             export_onnx(model, onnx_path, device)
+        
+        # Validate after each epoch
+        unique_test_runs = sorted(list(set([sample[0] for sample in test_set.samples])))
+        current_epoch_rmse = []
+        current_epoch_edge = []
+        
+        for run_idx in unique_test_runs:
+            epoch_rmse, epoch_edge_err, _ = validate_metrics(
+                dataset=test_set,
+                model_ver=os.path.basename(run_dir),
+                run_index=run_idx,
+                sub_dir=f"epoch_{epoch+1}",
+                model=model
+            )
+            current_epoch_rmse.append(epoch_rmse)
+            current_epoch_edge.append(epoch_edge_err)
+        
+        # 3. Average and Append to History (ONE value per epoch)
+        avg_val_rmse = np.mean(current_epoch_rmse)
+        avg_val_edge = np.mean(current_epoch_edge)
+        
+        validation_rmse_history.append(avg_val_rmse)
+        validation_edge_history.append(avg_val_edge)
+        
+        print(f"📊 Validation Epoch {epoch+1}: Mean RMSE={avg_val_rmse:.4f} | Mean Edge Err={avg_val_edge*100:.2f}%")            
     
     # ==========================================
     # Save epoch histories graphs
@@ -355,6 +382,8 @@ def trainModel(train_set, test_set, device):
     plt.plot(epochs, chamfer_loss_history, label=f"Chamfer Loss x {cfg.LAMBDA_CHAMFER}")
     plt.plot(epochs, edge_history, label=f"Edge Loss x {cfg.LAMBDA_EDGE}")
     plt.plot(epochs, pin_history, label=f"Pin Loss x {cfg.LAMBDA_PIN}")
+    plt.plot(epochs, validation_rmse_history, label='Validation RMSE')
+    plt.plot(epochs, validation_edge_history, label='Validation Edge Error')
     plt.title('Training History')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
