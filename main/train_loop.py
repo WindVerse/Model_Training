@@ -5,6 +5,11 @@ import os
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+try:
+    from torchviz import make_dot
+    TORCHVIZ_AVAILABLE = True
+except ImportError:
+    TORCHVIZ_AVAILABLE = False
 
 import config as cfg
 from validate.validateVis import validate_rollout
@@ -12,6 +17,83 @@ from validate.validateMetric import validate_metrics
 from models.load_model import load_model
 from gen_summary import generate_details
 from loss.get_loss import getLoss
+
+
+def count_parameters(model):
+    """Returns the total number of trainable parameters."""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def save_architecture_diagram(model, save_path, device):
+    """
+    Traces the model with dummy inputs and saves a PNG and PDF diagram.
+    """
+    if not TORCHVIZ_AVAILABLE:
+        print("⚠️ torchviz not found. Skipping architecture diagram.")
+        return
+
+    model.eval()
+    
+    try:
+        # 1. Create Dummy Inputs based on Model Type
+        if cfg.MODEL == 'GNN':
+            # GNN inputs: Nodes, Wind, Edges
+            N_dummy = cfg.HEIGHT * cfg.WIDTH 
+            E_dummy = 2 * ((cfg.HEIGHT - 1) * cfg.WIDTH + (cfg.WIDTH - 1) * cfg.HEIGHT)
+
+            x_nodes = torch.randn(N_dummy, cfg.NODE_DIM).to(device)
+            x_wind = torch.randn(N_dummy, cfg.WIND_DIM).to(device)
+            edge_index = torch.randint(0, N_dummy, (2, E_dummy)).to(device)
+            
+            # Trace
+            y = model(x_nodes, x_wind, edge_index)
+
+        elif cfg.MODEL == 'SNN':
+            # SNN inputs: Flattened (Node + Wind)
+            B_dummy = 1
+            input_dim = cfg.NODE_DIM + cfg.WIND_DIM
+            x = torch.randn(B_dummy, input_dim).to(device)
+            
+            # Trace
+            y = model(x)
+
+        elif 'LSTM' in cfg.MODEL:
+            # LSTM inputs: Sequence (Batch, Seq, Features)
+            B_dummy = 1
+            S_dummy = cfg.SEQUENCE_LENGTH
+            N_real = cfg.HEIGHT * cfg.WIDTH
+            
+            # Create Dummy Nodes and Wind separately
+            dummy_nodes = torch.randn(B_dummy * S_dummy * N_real, cfg.NODE_DIM).to(device)
+            dummy_wind = torch.randn(B_dummy * S_dummy * N_real, cfg.WIND_DIM).to(device)
+            
+            # Trace (Unpack tuple!)
+            y, _ = model(dummy_nodes, dummy_wind)
+        
+        else:
+            return # Unknown model type, skip viz
+
+        # 2. Generate and Save Plot
+        dot = make_dot(y, params=dict(model.named_parameters()), show_attrs=True, show_saved=True)
+        
+        # --- SAVE AS PNG ---
+        dot.format = 'png'
+        # cleanup=False keeps the source .gv file (the "3rd" file)
+        dot.render(save_path, cleanup=False) 
+        print(f"📸 Architecture saved to: {save_path}.png")
+
+        # --- SAVE AS PDF (Vector Graphic) ---
+        dot.format = 'pdf'
+        dot.render(save_path)
+        print(f"📸 Architecture saved to: {save_path}.pdf")
+
+    except Exception as e:
+        print(f"⚠️ Architecture visualization failed: {e}")
+        # Hint for Windows users specifically
+        if "dot" in str(e):
+            print("💡 Tip: Ensure Graphviz executable is in your system PATH.")
+            
+    finally:
+        model.train() # Switch back to train mode
 
 def get_next_version_dir(base_dir):
     """
@@ -113,6 +195,9 @@ def trainModel(train_set, test_set, device):
     # ==========================================
     print(f"Initializing Model: {cfg.MODEL}...")
     model = load_model(device)
+    total_params = count_parameters(model)
+    print(f"Model initialized with {total_params} trainable parameters.")
+    save_architecture_diagram(model, os.path.join(run_dir, f"{cfg.MODEL}_architecture"), device)  
 
     # ==========================================
     # 2. LOSS INITIALIZATION
@@ -140,7 +225,7 @@ def trainModel(train_set, test_set, device):
     print(f"Starting training for {cfg.EPOCHS} epochs...")
     
     total_lost_history = []
-    mse_history = []
+    rmse_history = []
     edge_history = []
     pin_history = []
     chamfer_loss_history = []
@@ -149,7 +234,7 @@ def trainModel(train_set, test_set, device):
     for epoch in range(cfg.EPOCHS):
         model.train()
         total_train_loss = 0
-        total_mse = 0
+        total_rmse = 0
         total_pin = 0
         total_edge = 0
         total_chamfer = 0
@@ -164,7 +249,7 @@ def trainModel(train_set, test_set, device):
 
             # --- PREPARE DATA FOR GNN ---
             B, T, N, F = flag_seq.shape
-            
+                        
             x_nodes = flag_seq.view(B * T, N, F)
             x_wind_raw = wind_seq.view(B * T, 8, 3)
             y_target = target_seq.view(B * T, N, 3)
@@ -184,7 +269,15 @@ def trainModel(train_set, test_set, device):
 
             # --- FORWARD STEP ---
             optimizer.zero_grad()
-            pred_accel = model(x_nodes_flat, x_wind_flat, edge_index_flat)
+            
+            # 1. Call Model
+            out = model(x_nodes_flat, x_wind_flat, edge_index_flat)
+            
+            # 2. Handle Tuple Return (for LSTM) vs Tensor Return (for GNN/SNN)
+            if isinstance(out, tuple):
+                pred_accel, _ = out # Discard hidden state during training
+            else:
+                pred_accel = out
 
             # Reshape for Loss
             pred_reshaped = pred_accel.view(B*T, N, 3)
@@ -193,7 +286,7 @@ def trainModel(train_set, test_set, device):
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
             curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
             
-            loss, mse, chamfer_loss, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
+            loss, rmse, chamfer_loss, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
 
             # --- BACKWARD STEP ---
             loss.backward()
@@ -202,20 +295,20 @@ def trainModel(train_set, test_set, device):
 
             # Logging
             total_train_loss += loss.item()
-            total_mse += mse.item()
+            total_rmse += rmse.item()
             total_edge += edge_loss.item()
             total_pin += pin_loss.item()
             total_chamfer += chamfer_loss.item()
-            loop.set_postfix(loss=loss.item(), mse=mse.item(), chamfer=chamfer_loss.item(), edge=edge_loss.item(), pin=pin_loss.item())
+            loop.set_postfix(loss=loss.item(), rmse=rmse.item(), chamfer=chamfer_loss.item(), edge=edge_loss.item(), pin=pin_loss.item())
 
         avg_train_loss = total_train_loss / len(train_loader)
-        avg_mse = total_mse / len(train_loader)
+        avg_rmse = total_rmse / len(train_loader)
         avg_pos = total_chamfer / len(train_loader)
         avg_edge = total_edge / len(train_loader)
         avg_pin = total_pin / len(train_loader)
         
         total_lost_history.append(avg_train_loss)
-        mse_history.append(avg_mse * cfg.LAMBDA_RMSE)
+        rmse_history.append(avg_rmse * cfg.LAMBDA_RMSE)
         chamfer_loss_history.append(avg_pos * cfg.LAMBDA_CHAMFER)
         edge_history.append(avg_edge * cfg.LAMBDA_EDGE)
         pin_history.append(avg_pin * cfg.LAMBDA_PIN)
@@ -258,7 +351,7 @@ def trainModel(train_set, test_set, device):
     epochs = np.arange(1, cfg.EPOCHS + 1)
     # save all 5 histories in one plot
     plt.plot(epochs, total_lost_history, label='Train Loss')
-    plt.plot(epochs, mse_history, label=f"MSE x {cfg.LAMBDA_RMSE}")
+    plt.plot(epochs, rmse_history, label=f"RMSE x {cfg.LAMBDA_RMSE}")
     plt.plot(epochs, chamfer_loss_history, label=f"Chamfer Loss x {cfg.LAMBDA_CHAMFER}")
     plt.plot(epochs, edge_history, label=f"Edge Loss x {cfg.LAMBDA_EDGE}")
     plt.plot(epochs, pin_history, label=f"Pin Loss x {cfg.LAMBDA_PIN}")
@@ -292,6 +385,7 @@ def trainModel(train_set, test_set, device):
     
     test_rmse_history = []
     test_edge_error_history = []
+    time_per_frame = []
 
     for run_idx in unique_test_runs:
         validate_rollout(
@@ -299,19 +393,22 @@ def trainModel(train_set, test_set, device):
             model_ver=model_ver, 
             run_index=run_idx
         )
-        avg_rmse_per_run, avg_edge_err_per_run = validate_metrics(
+        avg_rmse_per_run, avg_edge_err_per_run, avg_time_per_frame = validate_metrics(
             dataset=test_set,
             model_ver=model_ver,
             run_index=run_idx
         )
         test_rmse_history.append(avg_rmse_per_run)
         test_edge_error_history.append(avg_edge_err_per_run)
+        time_per_frame.append(avg_time_per_frame)
     
     # Save Training Details
     details = generate_details(
         train_loss=best_loss,
         test_rmse=np.mean(test_rmse_history),
-        test_edge_err=np.mean(test_edge_error_history)
+        test_edge_err=np.mean(test_edge_error_history),
+        time_per_frame=np.mean(time_per_frame),
+        trainable_params=total_params
     )
     details_path = os.path.join(run_dir, "summary.txt")
     with open(details_path, 'w') as f:

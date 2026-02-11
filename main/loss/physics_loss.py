@@ -99,6 +99,7 @@ class PhysicsLoss(nn.Module):
         
         # --- 1. Standard MSE Loss (Supervised) ---
         mse_loss = F.mse_loss(pred_norm, target_norm)
+        rmse_loss = torch.sqrt(mse_loss)
 
         # --- 2. INTEGRATION (The Critical Step) ---
         # We must de-normalize predictions to apply physics laws
@@ -145,7 +146,7 @@ class PhysicsLoss(nn.Module):
         pin_loss = F.mse_loss(current_pinned_pos, target_pos_expanded)
 
         # --- 5. Total Loss ---
-        total_loss = (self.lambda_rmse * mse_loss) + \
+        total_loss = (self.lambda_rmse * rmse_loss) + \
                      (self.lambda_chamfer * chamfer_loss) + \
                      (self.lambda_edge * edge_loss) + \
                      (self.lambda_pin * pin_loss)

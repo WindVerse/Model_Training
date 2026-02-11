@@ -81,6 +81,9 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     curr_pos = torch.from_numpy(gt_flags[0, :, :3]).float().to(device)
     curr_vel = torch.from_numpy(gt_flags[0, :, 3:]).float().to(device)
     
+    # LSTM
+    hidden_state = None
+    
     predictions = []
     
     for t in range(total_frames - 1):
@@ -97,7 +100,25 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
         
         # B. Model Inference
         with torch.no_grad():
-            pred_norm_acc = model(norm_state, norm_wind, edge_index)
+            if 'LSTM' in cfg.MODEL:
+                # 1. Reshape for LSTM: (Batch, Seq_Len=1, Features)
+                # We treat every node as a batch item
+                lstm_input_nodes = norm_state.unsqueeze(1) # (N, 1, F)
+                lstm_input_wind  = norm_wind.unsqueeze(1)  # (N, 1, F)
+                
+                # 2. Forward Pass with State
+                # Ensure your LSTM forward method accepts and returns hidden_state!
+                # If your model.forward() doesn't support passing hidden state, 
+                # you strictly CANNOT validate autoregressively.
+                
+                # Note: This assumes your FlagLSTM_CNN_Net forward returns (output, hidden)
+                # If it only returns output, the LSTM is resetting every frame (BAD).
+                pred_norm_acc, hidden_state = model(lstm_input_nodes, lstm_input_wind, hidden=hidden_state)
+                
+                # Remove sequence dim for integration: (N, 1, 3) -> (N, 3)
+                pred_norm_acc = pred_norm_acc.squeeze(1)
+            else:
+                pred_norm_acc = model(norm_state, norm_wind, edge_index)
         
         # C. Physics Integration
         # De-normalize Acceleration

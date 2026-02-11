@@ -45,20 +45,26 @@ BASE_DATASET_PATH = "../../datasets/"
 MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
 LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
 if IS_TEST:
-    EPOCHS = 5
+    EPOCHS = 2
 else:
-    EPOCHS = 20
+    EPOCHS = 15
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 
-SEQUENCE_LENGTH = 10
+SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
+
+
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 3
-    NO_GNN_LAYERS = 2
-    HIDDEN_DIM = 64
-else:
     NO_MLP_HIDDEN_LAYERS = 6
     NO_GNN_LAYERS = 6
+    NO_LSTM_LAYERS = 3
+    CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
+    HIDDEN_DIM = 128
+else:
+    NO_MLP_HIDDEN_LAYERS = 5
+    NO_GNN_LAYERS = 6
+    NO_LSTM_LAYERS = 3
+    CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
     HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
 DROPOUT_RATE = 0.15
@@ -74,8 +80,8 @@ USE_LAYER_NORM = True
 ##########################################
 
 LAMBDA_RMSE = 1
-LAMBDA_CHAMFER = 100
-LAMBDA_EDGE = 50    # Weight for Spring Constraint (Edge Length)
+LAMBDA_CHAMFER = 25
+LAMBDA_EDGE = 25    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 
