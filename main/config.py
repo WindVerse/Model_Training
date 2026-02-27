@@ -45,29 +45,29 @@ BASE_DATASET_PATH = "../../datasets/"
 MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
 LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
 if IS_TEST:
-    EPOCHS = 3
+    EPOCHS = 5
 else:
     EPOCHS = 10
 LEARNING_RATE = 0.0001
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 
 SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
 
 
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 6
-    NO_GNN_LAYERS = 6
+    NO_MLP_HIDDEN_LAYERS = 5
+    NO_GNN_LAYERS = 5
     NO_LSTM_LAYERS = 3
     CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
     HIDDEN_DIM = 128
 else:
     NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 6
+    NO_GNN_LAYERS = 5
     NO_LSTM_LAYERS = 3
     CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
     HIDDEN_DIM = 128
 GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
-DROPOUT_RATE = 0.15
+DROPOUT_RATE = 0.1
 ACTIVATION = 'ReLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
 USE_LAYER_NORM = True
 
@@ -83,6 +83,8 @@ LAMBDA_RMSE = 1
 LAMBDA_CHAMFER = 25
 LAMBDA_EDGE = 25    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
+LAMBDA_AREA = 25
+LAMBDA_BEND = 10
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 
 
@@ -125,6 +127,8 @@ FLAG_DIR = os.path.join(DATASET_DIR, "flags")
 WIND_DIR = os.path.join(DATASET_DIR, "winds")
 TARGET_DIR = os.path.join(DATASET_DIR, "targets", TARGET_TYPE)
 TOPOLOGY_PATH = os.path.join(DATASET_DIR, "topology", "topology_edge_index.npy")
+FACES_PATH = os.path.join(DATASET_DIR, "topology", "topology_faces.npy")
+
 
 DELTA_T = 1.0 / FPS
 

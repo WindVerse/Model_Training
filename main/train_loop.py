@@ -227,6 +227,8 @@ def trainModel(train_set, test_set, device):
     total_lost_history = []
     rmse_history = []
     edge_history = []
+    area_history = []
+    bend_history = []
     pin_history = []
     chamfer_loss_history = []
 
@@ -239,6 +241,8 @@ def trainModel(train_set, test_set, device):
         total_rmse = 0
         total_pin = 0
         total_edge = 0
+        total_area = 0
+        total_bend = 0
         total_chamfer = 0
         
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.EPOCHS} [Train]")
@@ -249,7 +253,7 @@ def trainModel(train_set, test_set, device):
             wind_seq = wind_seq.to(device)
             target_seq = target_seq.to(device)
 
-            # --- PREPARE DATA FOR GNN ---
+            # --- PREPARE DATA FOR MODEL ---
             B, T, N, F = flag_seq.shape
                         
             x_nodes = flag_seq.view(B * T, N, F)
@@ -288,7 +292,7 @@ def trainModel(train_set, test_set, device):
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
             curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
             
-            loss, rmse, chamfer_loss, edge_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
+            loss, rmse, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
 
             # --- BACKWARD STEP ---
             loss.backward()
@@ -299,20 +303,26 @@ def trainModel(train_set, test_set, device):
             total_train_loss += loss.item()
             total_rmse += rmse.item()
             total_edge += edge_loss.item()
+            total_area += area_loss.item()
+            total_bend += bend_loss.item()
             total_pin += pin_loss.item()
             total_chamfer += chamfer_loss.item()
-            loop.set_postfix(loss=loss.item(), rmse=rmse.item(), chamfer=chamfer_loss.item(), edge=edge_loss.item(), pin=pin_loss.item())
+            loop.set_postfix(loss=loss.item(), rmse=rmse.item(), edge=edge_loss.item(), area=area_loss.item(), bend=bend_loss.item(), pin=pin_loss.item(), chamfer=chamfer_loss.item())
 
         avg_train_loss = total_train_loss / len(train_loader)
         avg_rmse = total_rmse / len(train_loader)
         avg_pos = total_chamfer / len(train_loader)
         avg_edge = total_edge / len(train_loader)
+        avg_area = total_area / len(train_loader)
+        avg_bend = total_bend / len(train_loader)
         avg_pin = total_pin / len(train_loader)
         
         total_lost_history.append(avg_train_loss)
         rmse_history.append(avg_rmse * cfg.LAMBDA_RMSE)
         chamfer_loss_history.append(avg_pos * cfg.LAMBDA_CHAMFER)
         edge_history.append(avg_edge * cfg.LAMBDA_EDGE)
+        area_history.append(avg_area * cfg.LAMBDA_AREA)
+        bend_history.append(avg_bend * cfg.LAMBDA_BEND)
         pin_history.append(avg_pin * cfg.LAMBDA_PIN)
         
 
@@ -376,12 +386,16 @@ def trainModel(train_set, test_set, device):
     epoch_history_path = os.path.join(run_dir, "training_history.png")
     plt.figure(figsize=(12, 5))
     epochs = np.arange(1, cfg.EPOCHS + 1)
-    # save all 5 histories in one plot
+    # save all histories in one plot
     plt.plot(epochs, total_lost_history, label='Train Loss')
     plt.plot(epochs, rmse_history, label=f"RMSE x {cfg.LAMBDA_RMSE}")
+    
     plt.plot(epochs, chamfer_loss_history, label=f"Chamfer Loss x {cfg.LAMBDA_CHAMFER}")
     plt.plot(epochs, edge_history, label=f"Edge Loss x {cfg.LAMBDA_EDGE}")
+    plt.plot(epochs, area_history, label=f"Area Loss x {cfg.LAMBDA_AREA}")
+    plt.plot(epochs, bend_history, label=f"Bend Loss x {cfg.LAMBDA_BEND}")
     plt.plot(epochs, pin_history, label=f"Pin Loss x {cfg.LAMBDA_PIN}")
+    
     plt.plot(epochs, validation_rmse_history, label='Validation RMSE')
     plt.plot(epochs, validation_edge_history, label='Validation Edge Error')
     plt.title('Training History')
