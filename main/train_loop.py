@@ -260,9 +260,30 @@ def trainModel(train_set, test_set, device):
             x_wind_raw = wind_seq.view(B * T, 8, 3)
             y_target = target_seq.view(B * T, N, 3)
 
-            x_wind_mean = x_wind_raw.mean(dim=1) 
-            x_wind_expanded = x_wind_mean.unsqueeze(1).repeat(1, N, 1)
+            curr_pos = flag_seq[..., :3].view(B*T, N, 3)
 
+            # curr_pos shape: (B*T, N, 3)
+            x = curr_pos[..., 0]
+            y = curr_pos[..., 1]
+            z = curr_pos[..., 2]
+
+            # Determine which half each coordinate is in
+            ix = (x >= 0).long()   # 0 if negative, 1 if positive
+            iy = (y >= 0).long()
+            iz = (z >= 0).long()
+
+            # Convert 3D index → 1D index (0 to 7)
+            cube_index = ix*4 + iy*2 + iz
+
+            # Expand cube_index for gathering
+            cube_index_expanded = cube_index.unsqueeze(-1).expand(-1, -1, 3)
+
+            x_wind_expanded = torch.gather(
+                x_wind_raw,
+                1,
+                cube_index_expanded
+            )
+                   
             x_nodes_flat = x_nodes.view(-1, F)
             x_wind_flat = x_wind_expanded.view(-1, 3)
             y_target_flat = y_target.view(-1, 3)
