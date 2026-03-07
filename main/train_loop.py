@@ -405,9 +405,12 @@ def trainModel(train_set, test_set, device):
     # ==========================================
     
     epoch_history_path = os.path.join(run_dir, "training_history.png")
-    plt.figure(figsize=(12, 5))
+    plt.figure(figsize=(12, 10))
+    
     epochs = np.arange(1, cfg.EPOCHS + 1)
-    # save all histories in one plot
+    
+    # Train Loss and Components
+    plt.subplot(2, 1, 1)
     plt.plot(epochs, total_lost_history, label='Train Loss')
     plt.plot(epochs, rmse_history, label=f"RMSE x {cfg.LAMBDA_RMSE}")
     
@@ -416,17 +419,24 @@ def trainModel(train_set, test_set, device):
     plt.plot(epochs, area_history, label=f"Area Loss x {cfg.LAMBDA_AREA}")
     plt.plot(epochs, bend_history, label=f"Bend Loss x {cfg.LAMBDA_BEND}")
     plt.plot(epochs, pin_history, label=f"Pin Loss x {cfg.LAMBDA_PIN}")
-    
-    plt.plot(epochs, validation_rmse_history, label='Validation RMSE')
-    plt.plot(epochs, validation_edge_history, label='Validation Edge Error')
-    plt.title('Training History')
+    plt.title('Training Loss History')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
+    
+    # Validation History
+    plt.subplot(2, 1, 2)
+    plt.plot(epochs, validation_rmse_history, label='Validation RMSE')
+    plt.plot(epochs, validation_edge_history, label='Validation Edge Error')
+    plt.title('Validation History')
+    plt.xlabel('Epoch')
+    plt.ylabel('Error')
+    plt.legend()
+    
+    plt.tight_layout()
     plt.savefig(epoch_history_path)
-    print(f"📈 Training history plot saved to: {epoch_history_path}")
     plt.close()
-
+    print(f"📈 Training history saved to: {epoch_history_path}")
 
     # ==========================================
     # 6. RELOAD BEST WEIGHTS

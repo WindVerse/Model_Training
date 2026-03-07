@@ -83,8 +83,8 @@ LAMBDA_RMSE = 1
 LAMBDA_CHAMFER = 25
 LAMBDA_EDGE = 25    # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
-LAMBDA_AREA = 25
-LAMBDA_BEND = 10
+LAMBDA_AREA = 50
+LAMBDA_BEND = 1
 LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
 
 

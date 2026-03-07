@@ -53,6 +53,8 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
             "Lambda Chamfer": {cfg.LAMBDA_CHAMFER},
             "Lambda EDGE": {cfg.LAMBDA_EDGE},
             "Lambda Smooth": {cfg.LAMBDA_SMOOTH},
+            "Lambda Area": {cfg.LAMBDA_AREA},
+            "Lambda Bend": {cfg.LAMBDA_BEND},
             "Lambda Pin": {cfg.LAMBDA_PIN},
         """
     else:
