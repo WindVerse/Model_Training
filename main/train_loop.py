@@ -17,6 +17,7 @@ from validate.validateMetric import validate_metrics
 from models.load_model import load_model
 from gen_summary import generate_details
 from loss.get_loss import getLoss
+from add_noise import apply_training_noise
 
 
 def count_parameters(model):
@@ -248,12 +249,14 @@ def trainModel(train_set, test_set, device):
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.EPOCHS} [Train]")
         
         for batch_idx, (flag_seq, wind_seq, target_seq) in enumerate(loop):
-            # Move to device
             flag_seq = flag_seq.to(device)
             wind_seq = wind_seq.to(device)
             target_seq = target_seq.to(device)
+            
+            # APPLY TRAINING NOISE
+            if cfg.ADD_NOISE:
+                flag_seq, target_seq = apply_training_noise(flag_seq, target_seq, train_set.stats, device)
 
-            # --- PREPARE DATA FOR MODEL ---
             B, T, N, F = flag_seq.shape
                         
             x_nodes = flag_seq.view(B * T, N, F)

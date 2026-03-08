@@ -2,7 +2,7 @@ import os
 import torch
 
 # Test or Not
-IS_TEST = True
+IS_TEST = False
 
 
 
@@ -44,12 +44,16 @@ BASE_DATASET_PATH = "../../datasets/"
 
 MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
 LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
+
+ADD_NOISE = True
+NOISE_STD = 0.001
+
 if IS_TEST:
     EPOCHS = 5
 else:
-    EPOCHS = 10
+    EPOCHS = 20
 LEARNING_RATE = 0.0001
-BATCH_SIZE = 2
+BATCH_SIZE = 4
 
 SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
 
@@ -80,12 +84,12 @@ USE_LAYER_NORM = True
 ##########################################
 
 LAMBDA_RMSE = 1
-LAMBDA_CHAMFER = 25
-LAMBDA_EDGE = 25    # Weight for Spring Constraint (Edge Length)
+LAMBDA_CHAMFER = 50
+LAMBDA_EDGE = 50        # Weight for Spring Constraint (Edge Length)
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
-LAMBDA_AREA = 50
-LAMBDA_BEND = 1
-LAMBDA_PIN = 0.0      # Weight for Pinned Nodes (Pole)
+LAMBDA_AREA = 0
+LAMBDA_BEND = 0
+LAMBDA_PIN = 0.0       # Weight for Pinned Nodes (Pole)
 
 
 

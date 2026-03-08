@@ -13,6 +13,7 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
             "Model Type": {cfg.MODEL},
             "Batch Size": {cfg.BATCH_SIZE},
             "Epochs": {cfg.EPOCHS},
+            "Sequence Length": {cfg.SEQUENCE_LENGTH},
             "Dropout Rate": {cfg.DROPOUT_RATE},
             "Layer Normalization": {cfg.USE_LAYER_NORM},
             "Total Trainable Parameters": {trainable_params},
