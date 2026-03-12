@@ -17,7 +17,7 @@ from validate.validateMetric import validate_metrics
 from models.load_model import load_model
 from gen_summary import generate_details
 from loss.get_loss import getLoss
-from add_noise import apply_training_noise
+from add_noise import apply_training_noise,flag_attack
 
 
 def count_parameters(model):
@@ -297,31 +297,48 @@ def trainModel(train_set, test_set, device):
                 edge_index_batch.append(base_edge_index + (i * N))
             edge_index_flat = torch.cat(edge_index_batch, dim=1)
 
-            # --- FORWARD STEP ---
-            optimizer.zero_grad()
-            
-            # 1. Call Model
-            out = model(x_nodes_flat, x_wind_flat, edge_index_flat)
-            
-            # 2. Handle Tuple Return (for LSTM) vs Tensor Return (for GNN/SNN)
-            if isinstance(out, tuple):
-                pred_accel, _ = out # Discard hidden state during training
-            else:
-                pred_accel = out
 
-            # Reshape for Loss
-            pred_reshaped = pred_accel.view(B*T, N, 3)
-            target_reshaped = y_target_flat.view(B*T, N, 3)
-            
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
             curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
-            
-            loss, rmse, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
 
-            # --- BACKWARD STEP ---
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            if cfg.FLAG_ENABLED:
+
+                loss, rmse, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss = flag_attack(
+                    model,
+                    x_nodes_flat,
+                    x_wind_flat,
+                    edge_index_flat,
+                     y_target_flat.view(B*T, N, 3),
+                    curr_pos, 
+                    curr_vel,
+                    criterion,
+                    optimizer
+                )
+
+            else:
+                # --- FORWARD STEP ---
+                optimizer.zero_grad()
+                
+                # 1. Call Model
+                out = model(x_nodes_flat, x_wind_flat, edge_index_flat)
+                
+                # 2. Handle Tuple Return (for LSTM) vs Tensor Return (for GNN/SNN)
+                if isinstance(out, tuple):
+                    pred_accel, _ = out # Discard hidden state during training
+                else:
+                    pred_accel = out
+
+                # Reshape for Loss
+                pred_reshaped = pred_accel.view(B*T, N, 3)
+                target_reshaped = y_target_flat.view(B*T, N, 3)
+            
+                
+                loss, rmse, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
+
+                # --- BACKWARD STEP ---
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
 
             # Logging
             total_train_loss += loss.item()

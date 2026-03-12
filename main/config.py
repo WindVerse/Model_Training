@@ -48,6 +48,10 @@ LOSS = "physicsLoss"                                  # 'physicsLoss', add more 
 ADD_NOISE = True
 NOISE_STD = 0.001
 
+FLAG_ENABLED = False                   # Free Large-scale Adversarial Augmentation on Graphs (flag) for worst case noise addition
+FLAG_STEPS = 3        # M             # number of forward passes to get the worst case loss
+FLAG_STEP_SIZE = 1e-3 # α             # step size for a forward pass
+
 if IS_TEST:
     EPOCHS = 5
 else:
