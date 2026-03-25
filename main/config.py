@@ -45,7 +45,7 @@ BASE_DATASET_PATH = "../../datasets/"
 MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
 LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
 
-ADD_NOISE = True
+ADD_NOISE = False
 NOISE_STD = 0.001
 
 FLAG_ENABLED = False                   # Free Large-scale Adversarial Augmentation on Graphs (flag) for worst case noise addition
@@ -53,9 +53,9 @@ FLAG_STEPS = 3        # M             # number of forward passes to get the wors
 FLAG_STEP_SIZE = 1e-3 # α             # step size for a forward pass
 
 if IS_TEST:
-    EPOCHS = 5
+    EPOCHS = 2
 else:
-    EPOCHS = 20
+    EPOCHS = 10
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 
@@ -63,11 +63,11 @@ SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame trai
 
 
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
-    NO_LSTM_LAYERS = 3
+    NO_MLP_HIDDEN_LAYERS = 3
+    NO_GNN_LAYERS = 3
+    NO_LSTM_LAYERS = 2
     CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
-    HIDDEN_DIM = 128
+    HIDDEN_DIM = 16
 else:
     NO_MLP_HIDDEN_LAYERS = 5
     NO_GNN_LAYERS = 5
