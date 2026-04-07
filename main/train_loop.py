@@ -29,7 +29,7 @@ def save_architecture_diagram(model, save_path, device):
     Traces the model with dummy inputs and saves a PNG and PDF diagram.
     """
     if not TORCHVIZ_AVAILABLE:
-        print("⚠️ torchviz not found. Skipping architecture diagram.")
+        print("torchviz not found. Skipping architecture diagram.")
         return
 
     model.eval()
@@ -80,18 +80,18 @@ def save_architecture_diagram(model, save_path, device):
         dot.format = 'png'
         # cleanup=False keeps the source .gv file (the "3rd" file)
         dot.render(save_path, cleanup=False) 
-        print(f"📸 Architecture saved to: {save_path}.png")
+        print(f"Architecture saved to: {save_path}.png")
 
         # --- SAVE AS PDF (Vector Graphic) ---
         dot.format = 'pdf'
         dot.render(save_path)
-        print(f"📸 Architecture saved to: {save_path}.pdf")
+        print(f"Architecture saved to: {save_path}.pdf")
 
     except Exception as e:
-        print(f"⚠️ Architecture visualization failed: {e}")
+        print(f"Architecture visualization failed: {e}")
         # Hint for Windows users specifically
         if "dot" in str(e):
-            print("💡 Tip: Ensure Graphviz executable is in your system PATH.")
+            print("Tip: Ensure Graphviz executable is in your system PATH.")
             
     finally:
         model.train() # Switch back to train mode
@@ -113,7 +113,7 @@ def get_next_version_dir(base_dir):
     next_val = max(numeric_dirs) + 1 if numeric_dirs else 1
     version_dir = os.path.join(base_dir, f"{next_val:03d}")
     os.makedirs(version_dir, exist_ok=True)
-    print(f"📂 Output directory created: {version_dir}")
+    print(f"Output directory created: {version_dir}")
     return version_dir
 
 def export_onnx(model, save_path, device):
@@ -152,9 +152,9 @@ def export_onnx(model, save_path, device):
             output_names=output_names,
             dynamic_axes=dynamic_axes
         )
-        print(f"📦 ONNX Model exported to: {save_path}")
+        print(f"ONNX Model exported to: {save_path}")
     except Exception as e:
-        print(f"⚠️ ONNX Export Failed: {e}")
+        print(f"ONNX Export Failed: {e}")
 
 def setup_optimization(model):
     """Helper to initialize Optimizer and Scheduler."""
@@ -390,7 +390,7 @@ def trainModel(train_set, test_set, device):
             
             # 1. Save PTH
             torch.save(model.state_dict(), pth_path)
-            print(f"💾 Best Model Saved: {pth_path}")
+            print(f"Best Model Saved: {pth_path}")
             
             # 2. Save ONNX
             export_onnx(model, onnx_path, device)
@@ -418,7 +418,7 @@ def trainModel(train_set, test_set, device):
         validation_rmse_history.append(avg_val_rmse)
         validation_edge_history.append(avg_val_edge)
         
-        print(f"📊 Validation Epoch {epoch+1}: Mean RMSE={avg_val_rmse:.4f} | Mean Edge Err={avg_val_edge*100:.2f}%")            
+        print(f"Validation Epoch {epoch+1}: Mean RMSE={avg_val_rmse:.4f} | Mean Edge Err={avg_val_edge*100:.2f}%")            
     
     # ==========================================
     # Save epoch histories graphs
@@ -456,7 +456,7 @@ def trainModel(train_set, test_set, device):
     plt.tight_layout()
     plt.savefig(epoch_history_path)
     plt.close()
-    print(f"📈 Training history saved to: {epoch_history_path}")
+    print(f"Training history saved to: {epoch_history_path}")
 
     # ==========================================
     # 6. RELOAD BEST WEIGHTS
@@ -471,7 +471,7 @@ def trainModel(train_set, test_set, device):
     # TRIGGER VISUAL VALIDATION
     # ==========================================
     model_ver = os.path.basename(run_dir)
-    print(f"🎨 Triggering Visualization for Model Version: {model_ver}")
+    print(f"Triggering Visualization for Model Version: {model_ver}")
 
     # Extract UNIQUE Run IDs from the test set
     unique_test_runs = sorted(list(set([sample[0] for sample in test_set.samples])))
@@ -508,8 +508,8 @@ def trainModel(train_set, test_set, device):
     with open(details_path, 'w') as f:
         f.write(details)
         f.close()
-    print(f"📄 Training summary saved to: {details_path}")
+    print(f"Training summary saved to: {details_path}")
     
-    print(f"✅ Returned model with Best Train Loss: {best_loss:.5f}")
+    print(f"Returned model with Best Train Loss: {best_loss:.5f}")
     
     return model

@@ -2,7 +2,7 @@ import os
 import torch
 
 # Test or Not
-IS_TEST = False
+IS_TEST = True
 
 
 
@@ -63,11 +63,11 @@ SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame trai
 
 
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 3
-    NO_GNN_LAYERS = 3
+    NO_MLP_HIDDEN_LAYERS = 5
+    NO_GNN_LAYERS = 5
     NO_LSTM_LAYERS = 2
     CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
-    HIDDEN_DIM = 16
+    HIDDEN_DIM = 128
 else:
     NO_MLP_HIDDEN_LAYERS = 5
     NO_GNN_LAYERS = 5
@@ -88,8 +88,8 @@ USE_LAYER_NORM = True
 ##########################################
 
 LAMBDA_RMSE = 1
-LAMBDA_CHAMFER = 50
-LAMBDA_EDGE = 50        # Weight for Spring Constraint (Edge Length)
+LAMBDA_CHAMFER = 20
+LAMBDA_EDGE = 10
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_AREA = 0
 LAMBDA_BEND = 0
@@ -104,7 +104,7 @@ LAMBDA_PIN = 0.0       # Weight for Pinned Nodes (Pole)
 ##########################################
 
 OPTIMIZER = 'Adam'          # Options: 'Adam', 'SGD', 'RMSprop'
-LEARNING_RATE = 1e-4        # Initial Learning Rate
+LEARNING_RATE = 0.0001
 WEIGHT_DECAY = 1e-5         # L2 Regularization (Prevents exploding weights)
 MOMENTUM = 0.9              # Used only for SGD
 

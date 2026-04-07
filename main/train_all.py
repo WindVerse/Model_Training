@@ -1,65 +1,80 @@
 import os
 import re
 import subprocess
+import itertools
 
-# 1. Define your combinations here
-# Add or remove combinations as needed
-hyperparameter_grid = [
-    {"RMSE": 1, "CHAMFER": 50, "EDGE": 50, "AREA": 0, "BEND": 0},
-    {"RMSE": 1, "CHAMFER": 10, "EDGE": 10, "AREA": 0, "BEND": 0},
-    {"RMSE": 1, "CHAMFER": 50, "EDGE": 10, "AREA": 0, "BEND": 0},
-    {"RMSE": 1, "CHAMFER": 10, "EDGE": 50, "AREA": 0, "BEND": 0},
-    {"RMSE": 1, "CHAMFER": 50, "EDGE": 50, "AREA": 2, "BEND": 4},
-    {"RMSE": 1, "CHAMFER": 10, "EDGE": 10, "AREA": 1, "BEND": 2},
-    {"RMSE": 1, "CHAMFER": 50, "EDGE": 10, "AREA": 1, "BEND": 2},
-    {"RMSE": 1, "CHAMFER": 10, "EDGE": 50, "AREA": 1, "BEND": 2},
+# 1. Define your parameter grids
+model_params = [
+    {"BATCH_SIZE": 4, "LEARNING_RATE": 0.0001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
+    {"BATCH_SIZE": 8, "LEARNING_RATE": 0.0001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
+    {"BATCH_SIZE": 4, "LEARNING_RATE": 0.0005, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
+    {"BATCH_SIZE": 4, "LEARNING_RATE": 0.0001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
+]
+
+loss_params = [
+    {"LAMBDA_RMSE": 2, "LAMBDA_CHAMFER": 20, "LAMBDA_EDGE": 20, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    {"LAMBDA_RMSE": 1, "LAMBDA_CHAMFER": 20, "LAMBDA_EDGE": 10, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    {"LAMBDA_RMSE": 1, "LAMBDA_CHAMFER": 10, "LAMBDA_EDGE": 20, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    {"LAMBDA_RMSE": 1, "LAMBDA_CHAMFER": 10, "LAMBDA_EDGE": 10, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    {"LAMBDA_RMSE": 1, "LAMBDA_CHAMFER": 5,  "LAMBDA_EDGE": 5,  "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
 ]
 
 CONFIG_FILE = "config.py"
 
-def update_config(rmse, chamfer, edge, area, bend):
-    """Reads config.py, updates the lambdas using regex, and overwrites the file."""
+def update_config(params_dict):
+    """
+    Dynamically updates config.py with any key-value pairs provided.
+    """
     with open(CONFIG_FILE, 'r') as f:
         content = f.read()
 
-    # Regex search and replace for the specific variables
-    content = re.sub(r'LAMBDA_RMSE\s*=\s*[\d.]+', f'LAMBDA_RMSE = {rmse}', content)
-    content = re.sub(r'LAMBDA_CHAMFER\s*=\s*[\d.]+', f'LAMBDA_CHAMFER = {chamfer}', content)
-    content = re.sub(r'LAMBDA_EDGE\s*=\s*[\d.]+', f'LAMBDA_EDGE = {edge}', content)
-    content = re.sub(r'LAMBDA_AREA\s*=\s*[\d.]+', f'LAMBDA_AREA = {area}', content)
-    content = re.sub(r'LAMBDA_BEND\s*=\s*[\d.]+', f'LAMBDA_BEND = {bend}', content)
+    for key, value in params_dict.items():
+        # Regex explanation:
+        # ({key}\s*=\s*) captures the variable name and the equals sign (e.g., "BATCH_SIZE = ")
+        # [^\n]+ matches everything after the equals sign until the end of the line
+        # \g<1>{value} replaces the line with the captured prefix + the new value
+        
+        # Format string check (add quotes if the value is a string)
+        val_str = f"'{value}'" if isinstance(value, str) else str(value)
+        
+        content = re.sub(rf'({key}\s*=\s*)[^\n]+', rf'\g<1>{val_str}', content)
 
     with open(CONFIG_FILE, 'w') as f:
         f.write(content)
 
-# 2. Loop through the combinations
-for combo in hyperparameter_grid:
-    r = combo["RMSE"]
-    c = combo["CHAMFER"]
-    e = combo["EDGE"]
-    a = combo["AREA"]
-    b = combo["BEND"]
-    
-    print(f"\n======================================================================")
-    print(f"   STARTING RUN: RMSE={r} | CHAMFER={c} | EDGE={e} | AREA={a} | BEND={b}")
+# 2. Generate all combinations (Grid Search)
+# This creates a Cartesian product: 4 model configs * 5 loss configs = 20 total runs
+all_combinations = [ {**m, **l} for m, l in itertools.product(model_params, loss_params) ]
+
+print(f"Total runs scheduled: {len(all_combinations)}\n")
+
+# 3. Execute Sweep
+for i, combo in enumerate(all_combinations, start=1):
+    print(f"======================================================================")
+    print(f" STARTING RUN {i}/{len(all_combinations)}")
+    print(f" PARAMETERS: {combo}")
     print(f"======================================================================")
     
-    # Update the config file
-    update_config(r, c, e, a, b)
+    # Update config.py
+    update_config(combo)
     
-    # Create a unique log file for this specific run
-    log_filename = f"training_R{r}_C{c}_E{e}_A{a}_B{b}.log"
+    # Create a clean log filename using the run number and key stats
+    lr = combo['LEARNING_RATE']
+    bs = combo['BATCH_SIZE']
+    rmse = combo['LAMBDA_RMSE']
+    edge = combo['LAMBDA_EDGE']
     
-    # Run train.py sequentially (this blocks until train.py finishes)
-    # Using shell=True allows us to use the standard '>' redirection
+    log_filename = f"run{i:02d}_LR{lr}_BS{bs}_R{rmse}_E{edge}.log"
+    
+    # Execute training
     command = f"python train.py > {log_filename} 2>&1"
     
     try:
         subprocess.run(command, shell=True, check=True)
-        print(f"? Run complete! Log saved to: {log_filename}")
+        print(f"Run {i} complete! Log saved to: {log_filename}\n")
     except subprocess.CalledProcessError:
-        print(f"? Run FAILED. Check {log_filename} for details.")
-        # Decide if you want to break the loop on failure or continue
+        print(f"Run {i} FAILED. Check {log_filename} for details.\n")
+        # Optional: break the loop if a run fails so you don't waste hours
         # break 
 
-print("\n?? All hyperparameter sweeps completed!")
+print("\nAll hyperparameter sweeps completed!")

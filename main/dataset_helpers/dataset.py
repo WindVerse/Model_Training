@@ -143,7 +143,7 @@ class FlagWindDataset(Dataset):
         train_ds = cls(all_flags, all_winds, all_targets, train_samples, sequence_length, stats)
         test_ds = cls(all_flags, all_winds, all_targets, test_samples, sequence_length, stats)
 
-        print(f"✅ Splitting Complete.")
+        print(f"Splitting Complete.")
         print(f"Train Samples: {len(train_ds)}")
         print(f"Test Samples:  {len(test_ds)}")
 

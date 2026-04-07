@@ -44,7 +44,7 @@ def calculate_edge_lengths(pos, edge_index):
 
 def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"📊 Starting Numerical Validation for Run {run_index+1}...")
+    print(f"Starting Numerical Validation for Run {run_index+1}...")
 
     # 1. Setup Data
     gt_flags = dataset.data_flags[run_index] # (Frames, Nodes, 6)
@@ -94,7 +94,7 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     rmse_history = []
     edge_error_history = []
     
-    print("🚀 Calculating Metrics...")
+    print("Calculating Metrics...")
     
     T = 0
     
@@ -183,7 +183,7 @@ def validate_metrics(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     avg_edge_err = np.mean(edge_error_history)
     
     plot_metrics(rmse_history, edge_error_history, avg_rmse, avg_edge_err, save_dir, run_index)
-    print(f"✅ Plots saved to {save_dir}")
+    print(f"Plots saved to {save_dir}")
 
     return avg_rmse, avg_edge_err, avg_time_per_frame
 

@@ -36,7 +36,7 @@ def integrate(pos, vel, accel, dt):
 
 def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"🎥 Starting Validation Rollout for Run {run_index+1} on {device}...")
+    print(f"Starting Validation Rollout for Run {run_index+1} on {device}...")
     
     # Extract Ground Truth
     gt_flags = dataset.data_flags[run_index] 
@@ -55,7 +55,7 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
         
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
-    print("✅ Model Loaded.")
+    print("Model Loaded.")
 
     # 3. Load Topology
     edge_index_np = np.load(cfg.TOPOLOGY_PATH)
@@ -75,7 +75,7 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     std_acc   = to_tensor(dataset.stats['target_std']).view(1, -1)
 
     # 5. ROLLOUT LOOP
-    print("🚀 Simulating...")
+    print("Simulating...")
     
     # Initial State (Frame 0)
     curr_pos = torch.from_numpy(gt_flags[0, :, :3]).float().to(device)
@@ -146,7 +146,7 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     predictions.append(curr_pos.cpu().numpy())
     predictions = np.array(predictions)
     
-    print("✅ Rollout Complete. Generating Animation...")
+    print("Rollout Complete. Generating Animation...")
     create_comparison_video(gt_flags[:, :, :3], predictions, model_ver, run_index, sub_dir=sub_dir)
 
 def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_dir=None):
@@ -195,11 +195,11 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
     
     try:
         ani.save(save_path, writer='ffmpeg', fps=20)
-        print(f"🎬 Video saved to: {save_path}")
+        print(f"Video saved to: {save_path}")
     except:
-        print("⚠️ FFmpeg not found. Saving as GIF instead.")
+        print("FFmpeg not found. Saving as GIF instead.")
         ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=20)
-        print(f"🎬 GIF saved to: {save_path.replace('.mp4', '.gif')}")
+        print(f"GIF saved to: {save_path.replace('.mp4', '.gif')}")
 
 if __name__ == "__main__":    
     train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO) 
