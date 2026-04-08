@@ -58,6 +58,7 @@ else:
     EPOCHS = 10
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
+WARMUP_EPOCHS = 0                      # Should be less than total epochs.
 
 SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
 
@@ -88,7 +89,8 @@ USE_LAYER_NORM = True
 ##########################################
 
 LAMBDA_RMSE = 1
-LAMBDA_CHAMFER = 20
+LAMBDA_POSITIONAL = 1
+LAMBDA_CHAMFER = 0
 LAMBDA_EDGE = 10
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_AREA = 0

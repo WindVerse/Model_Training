@@ -51,6 +51,7 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
         details += f"""
             "Loss Function": {cfg.LOSS},
             "Lambda RMSE": {cfg.LAMBDA_RMSE},
+            "Lambda Positional": {cfg.LAMBDA_POSITIONAL},
             "Lambda Chamfer": {cfg.LAMBDA_CHAMFER},
             "Lambda EDGE": {cfg.LAMBDA_EDGE},
             "Lambda Smooth": {cfg.LAMBDA_SMOOTH},

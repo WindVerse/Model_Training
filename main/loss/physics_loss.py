@@ -15,6 +15,7 @@ class PhysicsLoss(nn.Module):
 
         # 1. Hyperparameters
         self.lambda_rmse = cfg.LAMBDA_RMSE
+        self.lambda_positional = cfg.LAMBDA_POSITIONAL
         self.lambda_chamfer = cfg.LAMBDA_CHAMFER
         self.lambda_edge = cfg.LAMBDA_EDGE    # Penalize stretching
         self.lambda_area = cfg.LAMBDA_AREA    # Penalize shearing
@@ -109,21 +110,24 @@ class PhysicsLoss(nn.Module):
         return torch.mean(min_dist_pred) + torch.mean(min_dist_target)
     
     def forward(self, pred_norm, target_norm, curr_pos, curr_vel):
-        # 1. Standard MSE Loss (Supervised)
+        # Standard MSE Loss (acceleration matching in normalized space)
         mse_loss = F.mse_loss(pred_norm, target_norm)
         rmse_loss = torch.sqrt(mse_loss)
 
-        # 2. INTEGRATION
+        # INTEGRATION
         pred_accel_real = self.de_normalize(pred_norm)
         pred_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * pred_accel_real * (self.dt ** 2))
         
         target_accel_real = self.de_normalize(target_norm)
         target_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * target_accel_real * (self.dt ** 2))
         
-        # 3. Chamfer Loss
+        # Positional RMSE Loss (Node-to-Node matching)
+        positional_loss = torch.sqrt(F.mse_loss(pred_pos_next, target_pos_next))
+        
+        # Chamfer Loss
         chamfer_loss = self.compute_chamfer_loss(pred_pos_next, target_pos_next)
 
-        # 4. EDGE LOSS (Stretch Constraint)
+        # EDGE LOSS (Stretch Constraint)
         p_src = pred_pos_next[:, self.src, :] # (B, E, 3)
         p_dst = pred_pos_next[:, self.dst, :] # (B, E, 3)
         curr_vec = p_src - p_dst
@@ -161,6 +165,7 @@ class PhysicsLoss(nn.Module):
 
         # 8. Total Loss Integration
         total_loss = (self.lambda_rmse * rmse_loss) + \
+                     (self.lambda_positional * positional_loss) + \
                      (self.lambda_chamfer * chamfer_loss) + \
                      (self.lambda_edge * edge_loss) + \
                      (self.lambda_area * area_loss) + \
@@ -168,4 +173,4 @@ class PhysicsLoss(nn.Module):
                      (self.lambda_pin * pin_loss)
 
         # Return the new losses as well so you can log them
-        return total_loss, rmse_loss, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss
+        return total_loss, rmse_loss, positional_loss, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss

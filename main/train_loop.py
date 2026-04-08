@@ -235,7 +235,7 @@ def trainModel(train_set, test_set, device):
 
     validation_rmse_history = []
     validation_edge_history = []
-    
+        
     for epoch in range(cfg.EPOCHS):
         model.train()
         total_train_loss = 0
@@ -245,6 +245,16 @@ def trainModel(train_set, test_set, device):
         total_area = 0
         total_bend = 0
         total_chamfer = 0
+        
+        # Curriculum Learning: Warmup Phase with only RMSE Loss and Positional Loss
+        if cfg.WARMUP_EPOCHS > 0:
+            multiplier = min(1.0, (epoch+1) / cfg.WARMUP_EPOCHS)
+        else:
+            multiplier = 1.0
+        
+        criterion.lambda_edge = cfg.LAMBDA_EDGE * multiplier
+        criterion.lambda_area = cfg.LAMBDA_AREA * multiplier
+        criterion.lambda_bend = cfg.LAMBDA_BEND * multiplier
         
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.EPOCHS} [Train]")
         
@@ -381,12 +391,13 @@ def trainModel(train_set, test_set, device):
                 scheduler.step()
 
         # Save Best Model (Based on Train Loss)
-        if avg_train_loss < best_loss:
+        if avg_train_loss < best_loss and epoch >= cfg.WARMUP_EPOCHS:  # Ensure only saving after warmup
             best_loss = avg_train_loss
             
             # Paths
             pth_path = os.path.join(run_dir, "best_model.pth")
             onnx_path = os.path.join(run_dir, "best_model.onnx")
+            scripted_path = os.path.join(run_dir, "best_model_scripted.pt")
             
             # 1. Save PTH
             torch.save(model.state_dict(), pth_path)
@@ -394,6 +405,13 @@ def trainModel(train_set, test_set, device):
             
             # 2. Save ONNX
             export_onnx(model, onnx_path, device)
+            print(f"ONNX Model Saved: {onnx_path}")
+            
+            # 3. Save PT Architecture Diagram
+            scripted_model = torch.jit.script(model)
+            scripted_model.save(scripted_path)
+            print(f"Scripted Model Saved: {scripted_path}")
+            
         
         # Validate after each epoch
         unique_test_runs = sorted(list(set([sample[0] for sample in test_set.samples])))
