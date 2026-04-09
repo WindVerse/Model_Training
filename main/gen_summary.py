@@ -112,6 +112,9 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
     else:
         details += f"""
             "Scheduler": {cfg.SCHEDULER},
+            
+        "Target": {cfg.TARGET_TYPE},
+        "Validating": {cfg.VALIDATE},
         """
 
     return details

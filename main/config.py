@@ -3,6 +3,7 @@ import torch
 
 # Test or Not
 IS_TEST = True
+VALIDATE = False
 
 if IS_TEST:
     DATASET_VERSION = 0
@@ -13,9 +14,9 @@ if IS_TEST:
     EPOCHS = 2
     WARMUP_EPOCHS = 1
 else:
-    EPOCHS = 10
-    WARMUP_EPOCHS = 3
-LEARNING_RATE = 0.0005
+    EPOCHS = 15
+    WARMUP_EPOCHS = 5
+LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 
 SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
@@ -43,7 +44,7 @@ USE_LAYER_NORM = True
 ########### Dataset Properties ##########
 #########################################
 
-TARGET_TYPE = "acc_new"                    # displacements, accelerations, acc_new
+TARGET_TYPE = "accelerations"                    # displacements, accelerations, acc_new
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
 if IS_TEST:
@@ -88,8 +89,8 @@ FLAG_STEP_SIZE = 1e-3 # α             # step size for a forward pass
 
 LAMBDA_RMSE = 1
 LAMBDA_POSITIONAL = 0
-LAMBDA_CHAMFER = 30
-LAMBDA_EDGE = 5
+LAMBDA_CHAMFER = 100
+LAMBDA_EDGE = 100
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_AREA = 0
 LAMBDA_BEND = 0
@@ -104,7 +105,6 @@ LAMBDA_PIN = 0.0       # Weight for Pinned Nodes (Pole)
 ##########################################
 
 OPTIMIZER = 'Adam'          # Options: 'Adam', 'SGD', 'RMSprop'
-LEARNING_RATE = 0.001
 WEIGHT_DECAY = 1e-5         # L2 Regularization (Prevents exploding weights)
 MOMENTUM = 0.9              # Used only for SGD
 
