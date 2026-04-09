@@ -147,13 +147,21 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     predictions = np.array(predictions)
     
     print("Rollout Complete. Generating Animation...")
-    create_comparison_video(gt_flags[:, :, :3], predictions, model_ver, run_index, sub_dir=sub_dir)
+    create_comparison_video(gt_flags[:, :, :3], predictions, model_ver, run_index, sub_dir=sub_dir, winds=gt_winds)
 
-def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_dir=None):
+def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_dir=None, winds=None):
     """Creates a side-by-side 3D animation."""
     fig = plt.figure(figsize=(12, 6))
     ax1 = fig.add_subplot(121, projection='3d')
     ax2 = fig.add_subplot(122, projection='3d')
+    
+    # --- mini wind visualization ---
+    wind_ax = fig.add_axes([0.4, 0.75, 0.25, 0.25], projection='3d')
+    wind_ax.axis('off') 
+    wind_ax.set_xlim(-1, 1); wind_ax.set_ylim(-1, 1); wind_ax.set_zlim(-1, 1)
+    
+    # --- Wind Magnitude Text ---
+    wind_mag_text = fig.text(0.5, 0.82, '', ha='center', va='top', fontsize=8, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", edgecolor="gray", alpha=0.8))
     
     ax1.set_title(f"Ground Truth (Run {run_index+1})")
     ax2.set_title("GNN Prediction (Rollout)")
@@ -171,6 +179,8 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
     scat1 = ax1.scatter([], [], [], c='b', s=2)
     scat2 = ax2.scatter([], [], [], c='r', s=2)
     txt = fig.suptitle('')
+    
+    wind_quivers = []
 
     def update(frame):
         gt_p = ground_truth[frame]
@@ -180,8 +190,31 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
         scat2._offsets3d = (pred_p[:,0], pred_p[:,1], pred_p[:,2])
         
         txt.set_text(f"Frame: {frame}/{len(ground_truth)}")
-        return scat1, scat2
-
+        
+# --- UPDATE WIND ARROW & TEXT ---
+        if winds is not None:
+            nonlocal wind_quivers
+            if wind_quivers:
+                for quiv in wind_quivers:
+                    quiv.remove()
+            wind_quivers.clear()
+            
+            avg_w = np.mean(winds[frame], axis=0)
+            mag = np.sqrt(avg_w[0]**2 + avg_w[1]**2 + avg_w[2]**2)
+            
+            if mag > 1e-8:
+                dir_w = avg_w / mag
+            else:
+                dir_w = np.zeros(3)
+                
+            quiv = wind_ax.quiver(0, 0, 0, dir_w[0], dir_w[1], dir_w[2], 
+                                  length=1.0, color='magenta', linewidth=3, arrow_length_ratio=0.3)
+            wind_quivers.append(quiv)
+            
+            wind_mag_text.set_text(f"Wind Strength: {mag:.4f}")
+            
+        return scat1, scat2, txt, wind_mag_text
+        
     ani = animation.FuncAnimation(fig, update, frames=len(ground_truth), interval=1000*cfg.DELTA_T, blit=False)
     
     # Save

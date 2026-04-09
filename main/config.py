@@ -2,7 +2,7 @@ import os
 import torch
 
 # Test or Not
-IS_TEST = True
+IS_TEST = False
 
 
 
@@ -89,9 +89,9 @@ USE_LAYER_NORM = True
 ##########################################
 
 LAMBDA_RMSE = 1
-LAMBDA_POSITIONAL = 1
+LAMBDA_POSITIONAL = 0
 LAMBDA_CHAMFER = 0
-LAMBDA_EDGE = 10
+LAMBDA_EDGE = 0
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_AREA = 0
 LAMBDA_BEND = 0
