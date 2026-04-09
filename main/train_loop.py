@@ -12,8 +12,7 @@ except ImportError:
     TORCHVIZ_AVAILABLE = False
 
 import config as cfg
-from validate.validateVis import validate_rollout
-from validate.validateMetric import validate_metrics
+from validate.validate import validate_run
 from models.load_model import load_model
 from gen_summary import generate_details
 from loss.get_loss import getLoss
@@ -310,8 +309,16 @@ def trainModel(train_set, test_set, device):
             edge_index_flat = torch.cat(edge_index_batch, dim=1)
 
 
+            # --- Extract Positions from History Window ---
+            # Index 0:3 is P_t (Current Position)
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
-            curr_vel = flag_seq[..., 3:6].view(B*T, N, 3)
+            
+            # Index 3:6 is P_{t-1} (Previous Position)
+            prev_pos = flag_seq[..., 3:6].view(B*T, N, 3)
+            
+            # --- Calculate Kinematic Velocity ---
+            # V_t = (P_t - P_{t-1}) / dt
+            curr_vel = (curr_pos - prev_pos) / cfg.DELTA_T
 
             if cfg.FLAG_ENABLED:
 
@@ -366,7 +373,7 @@ def trainModel(train_set, test_set, device):
         avg_train_loss = total_train_loss / len(train_loader)
         avg_rmse = total_rmse / len(train_loader)
         avg_pos = total_pos / len(train_loader)
-        avg_pos = total_chamfer / len(train_loader)
+        avg_chamfer = total_chamfer / len(train_loader)
         avg_edge = total_edge / len(train_loader)
         avg_area = total_area / len(train_loader)
         avg_bend = total_bend / len(train_loader)
@@ -375,7 +382,7 @@ def trainModel(train_set, test_set, device):
         total_lost_history.append(avg_train_loss)
         rmse_history.append(avg_rmse * cfg.LAMBDA_RMSE)
         pos_loss_history.append(avg_pos * cfg.LAMBDA_POSITIONAL)
-        chamfer_loss_history.append(avg_pos * cfg.LAMBDA_CHAMFER)
+        chamfer_loss_history.append(avg_chamfer * cfg.LAMBDA_CHAMFER)
         edge_history.append(avg_edge * cfg.LAMBDA_EDGE)
         area_history.append(avg_area * cfg.LAMBDA_AREA)
         bend_history.append(avg_bend * cfg.LAMBDA_BEND)
@@ -424,7 +431,7 @@ def trainModel(train_set, test_set, device):
         current_epoch_edge = []
         
         for run_idx in unique_test_runs:
-            epoch_rmse, epoch_edge_err, _ = validate_metrics(
+            epoch_rmse, epoch_edge_err, _ = validate_run(
                 dataset=test_set,
                 model_ver=os.path.basename(run_dir),
                 run_index=run_idx,
@@ -505,12 +512,7 @@ def trainModel(train_set, test_set, device):
     time_per_frame = []
 
     for run_idx in unique_test_runs:
-        validate_rollout(
-            dataset=test_set, 
-            model_ver=model_ver, 
-            run_index=run_idx
-        )
-        avg_rmse_per_run, avg_edge_err_per_run, avg_time_per_frame = validate_metrics(
+        avg_rmse_per_run, avg_edge_err_per_run, avg_time_per_frame = validate_run(
             dataset=test_set,
             model_ver=model_ver,
             run_index=run_idx

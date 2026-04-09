@@ -2,19 +2,48 @@ import os
 import torch
 
 # Test or Not
-IS_TEST = False
+IS_TEST = True
 
+if IS_TEST:
+    DATASET_VERSION = 0
+else:
+    DATASET_VERSION = 6
+
+if IS_TEST:
+    EPOCHS = 2
+    WARMUP_EPOCHS = 1
+else:
+    EPOCHS = 10
+    WARMUP_EPOCHS = 3
+LEARNING_RATE = 0.0005
+BATCH_SIZE = 4
+
+SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
+HISTORY_WINDOW = 3                             # Number of past frames to consider for each prediction
+
+if IS_TEST:
+    NO_MLP_HIDDEN_LAYERS = 5
+    NO_GNN_LAYERS = 5
+    NO_LSTM_LAYERS = 2
+    CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
+    HIDDEN_DIM = 128
+else:
+    NO_MLP_HIDDEN_LAYERS = 5
+    NO_GNN_LAYERS = 5
+    NO_LSTM_LAYERS = 3
+    CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
+    HIDDEN_DIM = 128
+GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
+DROPOUT_RATE = 0.1
+ACTIVATION = 'ReLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
+USE_LAYER_NORM = True
 
 
 #########################################
 ########### Dataset Properties ##########
 #########################################
 
-if IS_TEST:
-    DATASET_VERSION = 0
-else:
-    DATASET_VERSION = 6
-TARGET_TYPE = "accelerations"                    # displacements, accelerations
+TARGET_TYPE = "acc_new"                    # displacements, accelerations, acc_new
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
 if IS_TEST:
@@ -28,7 +57,7 @@ else:
     MAX_FRAMES = 300
 HEIGHT = 20
 WIDTH = 30
-NODE_DIM = 6                                     # 3-[Pos_x, Pos_y, Pos_z], 6-[Pos_x, Pos_y, Pos_z, Vel_x, Vel_y, Vel_z]
+NODE_DIM = 3 * HISTORY_WINDOW                    # Pos(3) * History_Window
 WIND_DIM = 3
 EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist(1)]
 NUM_VERTICES = HEIGHT*WIDTH
@@ -52,37 +81,6 @@ FLAG_ENABLED = False                   # Free Large-scale Adversarial Augmentati
 FLAG_STEPS = 3        # M             # number of forward passes to get the worst case loss
 FLAG_STEP_SIZE = 1e-3 # α             # step size for a forward pass
 
-if IS_TEST:
-    EPOCHS = 2
-else:
-    EPOCHS = 10
-LEARNING_RATE = 0.0001
-BATCH_SIZE = 4
-WARMUP_EPOCHS = 0                      # Should be less than total epochs.
-
-SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
-
-
-if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
-    NO_LSTM_LAYERS = 2
-    CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
-    HIDDEN_DIM = 128
-else:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
-    NO_LSTM_LAYERS = 3
-    CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
-    HIDDEN_DIM = 128
-GNN_AGGREGATION = "add"                          # 'add', 'mean', 'max'
-DROPOUT_RATE = 0.1
-ACTIVATION = 'ReLU'                              # 'ReLU', 'SiLU', 'Tanh', 'LeakyReLU'
-USE_LAYER_NORM = True
-
-
-
-
 
 ##########################################
 ########### Loss Hyperparameters #########
@@ -90,8 +88,8 @@ USE_LAYER_NORM = True
 
 LAMBDA_RMSE = 1
 LAMBDA_POSITIONAL = 0
-LAMBDA_CHAMFER = 0
-LAMBDA_EDGE = 0
+LAMBDA_CHAMFER = 30
+LAMBDA_EDGE = 5
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
 LAMBDA_AREA = 0
 LAMBDA_BEND = 0
@@ -106,7 +104,7 @@ LAMBDA_PIN = 0.0       # Weight for Pinned Nodes (Pole)
 ##########################################
 
 OPTIMIZER = 'Adam'          # Options: 'Adam', 'SGD', 'RMSprop'
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.001
 WEIGHT_DECAY = 1e-5         # L2 Regularization (Prevents exploding weights)
 MOMENTUM = 0.9              # Used only for SGD
 

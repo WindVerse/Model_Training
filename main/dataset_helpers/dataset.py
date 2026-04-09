@@ -25,8 +25,36 @@ class FlagWindDataset(Dataset):
     def __getitem__(self, idx):
         run_idx, start_frame = self.samples[idx]
         end_frame = start_frame + self.sequence_length
+        k = cfg.HISTORY_WINDOW
 
-        flag = self.data_flags[run_idx][start_frame:end_frame]
+        # 1. Figure out how far back we need to look
+        raw_start = max(0, start_frame - k + 1)
+        pad_count = max(0, (k - 1) - start_frame)
+        
+        # 2. Grab the raw positions from memory (Ignore simulator velocity, just take :3)
+        raw_positions = self.data_flags[run_idx][raw_start:end_frame, :, :3].copy()
+        
+        # 3. Pad if at the beginning of the simulation (Duplicate frame 0)
+        if pad_count > 0:
+            pad_frames = np.repeat(raw_positions[0:1], pad_count, axis=0)
+            raw_positions = np.concatenate([pad_frames, raw_positions], axis=0)
+            
+        # 4. Build the stacked history features
+        stacked_features = []
+        for t in range(self.sequence_length):
+            # Grab the window of 'k' frames leading up to the current frame
+            window = raw_positions[t : t + k] 
+            
+            # Reverse it so the order is [P_t, P_t-1, P_t-2]
+            window_reversed = window[::-1]
+            
+            # Reshape into a flat feature vector per node: (N, k * 3)
+            flat_features = window_reversed.transpose(1, 0, 2).reshape(-1, k * 3)
+            stacked_features.append(flat_features)
+            
+        # Shape: (Seq_Len, N, k*3)
+        flag = np.stack(stacked_features)
+
         wind = self.data_winds[run_idx][start_frame:end_frame]
         target = self.data_targets[run_idx][start_frame:end_frame]
 
@@ -117,16 +145,29 @@ class FlagWindDataset(Dataset):
         # We need to gather all arrays that belong to the train set
         train_indices = [idx for idx, itr in run_metadata if itr <= train_limit_iter]
         
-        def compute_stats(data_source, indices):
+        def compute_stats(data_source, indices, is_flag=False):
             # Select only training runs
             selected_data = [data_source[i] for i in indices]
             full_stack = np.concatenate(selected_data, axis=0)
-            mean = np.mean(full_stack, axis=(0, 1), keepdims=True)
-            std = np.std(full_stack, axis=(0, 1), keepdims=True)
+            
+            if is_flag:
+                # Extract only positions (ignore velocity)
+                positions = full_stack[:, :, :3]
+                mean_3d = np.mean(positions, axis=(0, 1), keepdims=True)
+                std_3d = np.std(positions, axis=(0, 1), keepdims=True)
+                
+                # Tile the 3D stats to cover the historical window (e.g., 3 -> 9)
+                mean = np.tile(mean_3d, (1, 1, cfg.HISTORY_WINDOW))
+                std = np.tile(std_3d, (1, 1, cfg.HISTORY_WINDOW))
+            else:
+                mean = np.mean(full_stack, axis=(0, 1), keepdims=True)
+                std = np.std(full_stack, axis=(0, 1), keepdims=True)
+                
             return torch.from_numpy(mean).float(), torch.from_numpy(std).float()
 
         stats = {}
-        stats['flag_mean'], stats['flag_std'] = compute_stats(all_flags, train_indices)
+        # NOTE: Passed is_flag=True for the flag dataset
+        stats['flag_mean'], stats['flag_std'] = compute_stats(all_flags, train_indices, is_flag=True)
         stats['wind_mean'], stats['wind_std'] = compute_stats(all_winds, train_indices)
         stats['target_mean'], stats['target_std'] = compute_stats(all_targets, train_indices)
         

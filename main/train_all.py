@@ -5,18 +5,17 @@ import itertools
 
 # 1. Define your parameter grids
 model_params = [
-    {"BATCH_SIZE": 4, "LEARNING_RATE": 0.0001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
+    # {"BATCH_SIZE": 4, "LEARNING_RATE": 0.0001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
     {"BATCH_SIZE": 8, "LEARNING_RATE": 0.0001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
-    {"BATCH_SIZE": 4, "LEARNING_RATE": 0.0005, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
-    {"BATCH_SIZE": 4, "LEARNING_RATE": 0.001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
+    # {"BATCH_SIZE": 4, "LEARNING_RATE": 0.001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
+    {"BATCH_SIZE": 8, "LEARNING_RATE": 0.001, "NO_GNN_LAYERS": 5, "NO_MLP_HIDDEN_LAYERS": 5, "HIDDEN_DIM": 128},
 ]
 
 loss_params = [
-    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 10, "LAMBDA_EDGE": 10, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
-    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 20, "LAMBDA_EDGE": 5, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
-    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 10, "LAMBDA_EDGE": 5, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
-    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 5, "LAMBDA_EDGE": 5, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
-    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 2,  "LAMBDA_EDGE": 2,  "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 5, "LAMBDA_CHAMFER": 0, "LAMBDA_EDGE": 10, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 0, "LAMBDA_CHAMFER": 20, "LAMBDA_EDGE": 5, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 0, "LAMBDA_CHAMFER": 25, "LAMBDA_EDGE": 5, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
+    # {"LAMBDA_RMSE": 1, "LAMBDA_POSITIONAL": 0, "LAMBDA_CHAMFER": 10, "LAMBDA_EDGE": 5, "LAMBDA_AREA": 0, "LAMBDA_BEND": 0},
 ]
 
 CONFIG_FILE = "config.py"
@@ -64,7 +63,10 @@ for i, combo in enumerate(all_combinations, start=1):
     rmse = combo['LAMBDA_RMSE']
     edge = combo['LAMBDA_EDGE']
     
-    log_filename = f"run{i:02d}_LR{lr}_BS{bs}_R{rmse}_E{edge}.log"
+    # Create a logs directory if it doesn't exist
+    os.makedirs("LOGS", exist_ok=True)
+    
+    log_filename = f"LOGS/run{i:02d}_LR{lr}_BS{bs}_R{rmse}_E{edge}.log"
     
     # Execute training
     command = f"python train.py > {log_filename} 2>&1"
