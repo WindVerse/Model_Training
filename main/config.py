@@ -2,7 +2,7 @@ import os
 import torch
 
 # Test or Not
-IS_TEST = True
+IS_TEST = False
 VALIDATE = False
 
 if IS_TEST:
@@ -44,7 +44,7 @@ USE_LAYER_NORM = True
 ########### Dataset Properties ##########
 #########################################
 
-TARGET_TYPE = "accelerations"                    # displacements, accelerations, acc_new
+TARGET_TYPE = "displacements"                    # displacements, accelerations, acc_new
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
 if IS_TEST:
