@@ -13,6 +13,9 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
             "Model Type": {cfg.MODEL},
             "Batch Size": {cfg.BATCH_SIZE},
             "Epochs": {cfg.EPOCHS},
+            "Warmup Epochs": {cfg.WARMUP_EPOCHS},
+            "Learning Rate": {cfg.LEARNING_RATE},
+            "History Window": {cfg.HISTORY_WINDOW},
             "Sequence Length": {cfg.SEQUENCE_LENGTH},
             "Dropout Rate": {cfg.DROPOUT_RATE},
             "Layer Normalization": {cfg.USE_LAYER_NORM},
@@ -113,5 +116,19 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
         details += f"""
             "Scheduler": {cfg.SCHEDULER},
         """
+    
+    # --- Noise Configuration ---
+    details += "\n        **** Noise Configuration ****"
+    details += f"""
+        "Add Noise": {cfg.ADD_NOISE},
+        "Noise Std Dev": {cfg.NOISE_STD},
+    """
+    
+    # --- Other Configurations ---
+    details += "\n        **** Other Configurations ****"
+    details += f"""
+        "Target": {cfg.TARGET_TYPE},
+        "Validating": {cfg.VALIDATE},
+    """
 
     return details

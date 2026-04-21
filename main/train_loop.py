@@ -431,13 +431,18 @@ def trainModel(train_set, test_set, device):
         current_epoch_edge = []
         
         for run_idx in unique_test_runs:
-            epoch_rmse, epoch_edge_err, _ = validate_run(
-                dataset=test_set,
-                model_ver=os.path.basename(run_dir),
-                run_index=run_idx,
-                sub_dir=f"epoch_{epoch+1}",
-                model=model
-            )
+            if cfg.VALIDATE:
+                epoch_rmse, epoch_edge_err, _ = validate_run(
+                    dataset=test_set,
+                    model_ver=os.path.basename(run_dir),
+                    run_index=run_idx,
+                    sub_dir=f"epoch_{epoch+1}",
+                    model=model
+                )
+            else:
+                epoch_rmse = 0
+                epoch_edge_err = 0
+            
             current_epoch_rmse.append(epoch_rmse)
             current_epoch_edge.append(epoch_edge_err)
         
