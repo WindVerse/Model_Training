@@ -14,6 +14,18 @@ def load_model(device):
         ).to(device)
         return model
     
+    elif cfg.MODEL == 'MeshGraphNet':
+        from models.meshgraphnet.MeshGraphNet import MeshGraphNet as ModelClass
+        model = ModelClass(
+            node_input_dim=7,
+            edge_input_dim=4,
+            latent_dim=cfg.HIDDEN_DIM,
+            num_processor_steps=cfg.NO_GNN_LAYERS,
+            output_dim=3
+        ).to(device)
+        return model
+
+    
     elif cfg.MODEL == 'SNN':
         from models.SNN import FlagWindNet as ModelClass
         model = ModelClass(

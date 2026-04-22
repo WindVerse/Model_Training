@@ -182,33 +182,50 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     
     T = 0
     
-    # 6. UNIFIED INFERENCE LOOP
+# 6. UNIFIED INFERENCE LOOP
     print("Simulating and Computing Metrics...")
     for t in range(total_frames - 1):
         t1 = time.time()
         
-        # --- A. Construct Historical State ---
-        # The buffer goes [Oldest, Middle, Newest]. We want [Newest, Middle, Oldest] to match training data
-        state_list = [history_buffer[i] for i in range(cfg.HISTORY_WINDOW - 1, -1, -1)]
-        curr_state = torch.cat(state_list, dim=-1) # Shape: (N, 3 * HISTORY_WINDOW)
+        # --- A. Extract Current and Previous Positions ---
+        curr_pos = history_buffer[-1]
+        prev_pos = history_buffer[-2]
         
-        norm_state = (curr_state - mean_flag) / (std_flag + 1e-8)
+        # 1. Calculate Kinematic Velocity (matching train loop)
+        curr_vel = (curr_pos - prev_pos)
         
+        # 2. Get Wind
         curr_wind = torch.from_numpy(gt_winds[t]).float().to(device)
+        # (Assuming your wind logic averages it for the nodes)
         wind_expanded = curr_wind.mean(dim=0).unsqueeze(0).repeat(num_nodes, 1)
-        norm_wind = (wind_expanded - mean_wind) / (std_wind + 1e-8)
+        
+        # 3. BUILD NODE FEATURES (Velocity + Wind + Pin Mask)
+        batch_pin_mask = cfg.PIN_MASK.to(device)
+        node_features = torch.cat([curr_vel, wind_expanded, batch_pin_mask], dim=-1)
+
+        # 4. BUILD EDGE FEATURES (Vector + Magnitude)
+        row, col = edge_index
+        x_ij = curr_pos[row] - curr_pos[col]
+        x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
+        edge_attr = torch.cat([x_ij, x_ij_norm], dim=-1)
         
         # --- B. Inference ---
         with torch.no_grad():
-            if 'LSTM' in cfg.MODEL:
-                lstm_input_nodes = norm_state.unsqueeze(1)
-                lstm_input_wind  = norm_wind.unsqueeze(1) 
-                pred_norm_acc, hidden_state = model(lstm_input_nodes, lstm_input_wind, hidden=hidden_state)
-                pred_norm_acc = pred_norm_acc.squeeze(1)
-            else:
-                pred_norm_acc = model(norm_state, norm_wind, edge_index)
+            pred_norm_acc = model(node_features, edge_index, edge_attr)
         
+        # --- C. DENORMALIZE THE PREDICTION ---
         pred_real_acc = pred_norm_acc * std_acc + mean_acc
+        
+        # ==========================================
+        # ENFORCE BOUNDARY CONDITIONS (The Secret!)
+        # ==========================================
+        # The network predicted garbage for the pinned nodes. Overwrite it to exactly 0.0.
+        H, W = cfg.HEIGHT, cfg.WIDTH
+        pinned_indices = [r * W for r in range(H)]
+        
+        # Force the real acceleration of pinned nodes to be zero
+        # pred_real_acc shape is [N, 3]
+        pred_real_acc[pinned_indices, :] = 0.0
         
         # --- C. Physics Integration ---
         # Calculate instantaneous kinematic velocity from the two most recent frames in the buffer
@@ -216,6 +233,8 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         
         if cfg.TARGET_TYPE in ["accelerations", "acc_new"]:
             next_pos, _ = integrate(history_buffer[-1], kinematic_vel, pred_real_acc, cfg.DELTA_T)
+        elif cfg.TARGET_TYPE == "acc":
+            next_pos = (2 * curr_pos) - prev_pos + pred_real_acc
         elif cfg.TARGET_TYPE == "displacements":
             disp = pred_real_acc
             next_pos = history_buffer[-1] + disp

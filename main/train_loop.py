@@ -117,41 +117,51 @@ def get_next_version_dir(base_dir):
 
 def export_onnx(model, save_path, device):
     """
-    Exports the model to ONNX format with dynamic axes.
+    Exports the MeshGraphNet model to ONNX format with dynamic axes.
     """
     model.eval()
     
-    # Dummy Input
-    dummy_nodes = cfg.HEIGHT * cfg.WIDTH 
-    dummy_edges = 2 * ((cfg.HEIGHT - 1) * cfg.WIDTH + (cfg.WIDTH - 1) * cfg.HEIGHT)
+    # 1. Define the INTEGER number of nodes
+    num_nodes = cfg.HEIGHT * cfg.WIDTH
+    num_dummy_edges = 2000 
     
-    x_nodes = torch.randn(dummy_nodes, cfg.NODE_DIM, device=device)
-    x_wind = torch.randn(dummy_nodes, cfg.WIND_DIM, device=device)
-    edge_index = torch.randint(0, dummy_nodes, (2, dummy_edges), device=device).long()
+    # 2. Node features: 3 (vel) + 3 (wind) + 1 (pin mask) = 7
+    dummy_node_features = torch.randn(num_nodes, 7, device=device)
     
-    input_names = ["flag", "wind", "edges"]
-    output_names = ["output"]
+    # 3. EDGE INDEX FIX: Guarantee every node exists by adding self-loops (0 to num_nodes-1)
+    random_edges = torch.randint(0, num_nodes, (2, num_dummy_edges), dtype=torch.long, device=device)
+    guaranteed_edges = torch.arange(0, num_nodes, dtype=torch.long, device=device).unsqueeze(0).repeat(2, 1)
+    dummy_edge_index = torch.cat([guaranteed_edges, random_edges], dim=1)
+    
+    # 4. Edge attributes (shape must match the total number of combined edges)
+    total_edges = dummy_edge_index.shape[1]
+    dummy_edge_attr = torch.randn(total_edges, 4, device=device)
+    
+    # 3. Define the Names and Dynamic Axes for the new inputs
+    input_names = ["node_features", "edge_index", "edge_attr"]
+    output_names = ["pred_accel"]
     
     dynamic_axes = {
-        "flag": {0: "num_nodes"},
-        "wind": {0: "num_nodes"},
-        "edges": {1: "num_edges"},
-        "output": {0: "num_nodes"}
+        "node_features": {0: "num_nodes"},
+        "edge_index": {1: "num_edges"},
+        "edge_attr": {0: "num_edges"},
+        "pred_accel": {0: "num_nodes"}
     }
     
+    # 4. Export
     try:
         torch.onnx.export(
             model,
-            (x_nodes, x_wind, edge_index),
+            (dummy_node_features, dummy_edge_index, dummy_edge_attr),
             save_path,
             export_params=True,
-            opset_version=16,
+            opset_version=16, # GNNs require higher opsets for scatter/gather
             do_constant_folding=True,
             input_names=input_names,
             output_names=output_names,
             dynamic_axes=dynamic_axes
         )
-        print(f"ONNX Model exported to: {save_path}")
+        print(f"ONNX Model exported successfully to: {save_path}")
     except Exception as e:
         print(f"ONNX Export Failed: {e}")
 
@@ -266,15 +276,26 @@ def trainModel(train_set, test_set, device):
             
             # APPLY TRAINING NOISE
             if cfg.ADD_NOISE:
-                flag_seq, target_seq = apply_training_noise(flag_seq, target_seq, train_set.stats, device)
+                flag_seq, target_seq = apply_training_noise(flag_seq, target_seq, device)
 
             B, T, N, F = flag_seq.shape
                         
             x_nodes = flag_seq.view(B * T, N, F)
             x_wind_raw = wind_seq.view(B * T, 8, 3)
             y_target = target_seq.view(B * T, N, 3)
-
+            
+            
+            # --- Extract Positions from History Window ---
+            # Index 0:3 is P_t (Current Position)
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
+            
+            # Index 3:6 is P_{t-1} (Previous Position)
+            prev_pos = flag_seq[..., 3:6].view(B*T, N, 3)
+            
+            # --- Calculate Kinematic Velocity ---
+            # V_t = (P_t - P_{t-1}) / dt
+            curr_vel = (curr_pos - prev_pos)
+            # Get WIND vectors
 
             # curr_pos shape: (B*T, N, 3)
             x = curr_pos[..., 0]
@@ -301,63 +322,67 @@ def trainModel(train_set, test_set, device):
             x_nodes_flat = x_nodes.view(-1, F)
             x_wind_flat = x_wind_expanded.view(-1, 3)
             y_target_flat = y_target.view(-1, 3)
-
+            
+            
             # --- PREPARE BATCH EDGES ---
             edge_index_batch = []
             for i in range(B * T):
                 edge_index_batch.append(base_edge_index + (i * N))
             edge_index_flat = torch.cat(edge_index_batch, dim=1)
 
-
-            # --- Extract Positions from History Window ---
-            # Index 0:3 is P_t (Current Position)
-            curr_pos = flag_seq[..., :3].view(B*T, N, 3)
+            # ==========================================
+            # MESHGRAPHNETS FEATURE ENCODING
+            # ==========================================
             
-            # Index 3:6 is P_{t-1} (Previous Position)
-            prev_pos = flag_seq[..., 3:6].view(B*T, N, 3)
+            # 1. NODE FEATURES (v_i)
+            # MGN expects a single flat vector per node combining physical states.
+            # We combine your sequence history (x_nodes_flat) with the interpolated wind.
+            # one-hot node type array (pinned=1 and free=0)
+            batch_pin_mask = cfg.PIN_MASK.to(device).repeat(B*T, 1)
+            curr_vel_flat = curr_vel.view(-1, 3)
             
-            # --- Calculate Kinematic Velocity ---
-            # V_t = (P_t - P_{t-1}) / dt
-            curr_vel = (curr_pos - prev_pos) / cfg.DELTA_T
+            node_features_flat = torch.cat([curr_vel_flat, x_wind_flat, batch_pin_mask], dim=-1)
 
-            if cfg.FLAG_ENABLED:
+            # 2. EDGE FEATURES (e_ij)
+            # MGN requires relative spatial distances between connected nodes.
+            curr_pos_flat = curr_pos.view(-1, 3) 
+            
+            # Extract sender (row) and receiver (col) nodes from the edge index
+            row, col = edge_index_flat
+            
+            # Calculate relative 3D displacement vector (x_i - x_j)
+            x_ij = curr_pos_flat[row] - curr_pos_flat[col]
+            
+            # Calculate distance magnitude (|x_ij|)
+            x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
+            
+            # Concatenate into the final edge feature tensor (shape: [num_edges, 4])
+            edge_attr_flat = torch.cat([x_ij, x_ij_norm], dim=-1)
 
-                loss, rmse, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss = flag_attack(
-                    model,
-                    x_nodes_flat,
-                    x_wind_flat,
-                    edge_index_flat,
-                     y_target_flat.view(B*T, N, 3),
-                    curr_pos, 
-                    curr_vel,
-                    criterion,
-                    optimizer
-                )
 
+            # --- FORWARD STEP ---
+            optimizer.zero_grad()
+        
+            # 1. Call Model
+            out = model(node_features_flat, edge_index_flat, edge_attr_flat)
+        
+            # 2. Handle Tuple Return (for LSTM) vs Tensor Return (for GNN/SNN)
+            if isinstance(out, tuple):
+                pred_accel, _ = out # Discard hidden state during training
             else:
-                # --- FORWARD STEP ---
-                optimizer.zero_grad()
-                
-                # 1. Call Model
-                out = model(x_nodes_flat, x_wind_flat, edge_index_flat)
-                
-                # 2. Handle Tuple Return (for LSTM) vs Tensor Return (for GNN/SNN)
-                if isinstance(out, tuple):
-                    pred_accel, _ = out # Discard hidden state during training
-                else:
-                    pred_accel = out
+                pred_accel = out
 
-                # Reshape for Loss
-                pred_reshaped = pred_accel.view(B*T, N, 3)
-                target_reshaped = y_target_flat.view(B*T, N, 3)
+            # Reshape for Loss
+            pred_reshaped = pred_accel.view(B*T, N, 3)
+            target_reshaped = y_target_flat.view(B*T, N, 3)
             
                 
-                loss, rmse, pos_loss, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
+            loss, rmse, pos_loss, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss = criterion(pred_reshaped, target_reshaped, curr_pos, curr_vel)
 
-                # --- BACKWARD STEP ---
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
+            # --- BACKWARD STEP ---
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
 
             # Logging
             total_train_loss += loss.item()
