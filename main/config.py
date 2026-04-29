@@ -12,13 +12,13 @@ else:
     DATASET_VERSION = 6
 
 if IS_TEST:
-    EPOCHS = 10
+    EPOCHS = 20
     WARMUP_EPOCHS = 0
 else:
-    EPOCHS = 10
+    EPOCHS = 50
     WARMUP_EPOCHS = 0
 LEARNING_RATE = 0.0001
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 
 SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
 HISTORY_WINDOW = 2                              # Number of past frames to consider for each prediction
@@ -53,6 +53,7 @@ if IS_TEST:
 else:
     ITERATION_COUNT = 100
 FPS = 10
+NO_DIGITS = 3
 if IS_TEST:
     MAX_FRAMES = 30
 else:
@@ -78,7 +79,7 @@ MODEL = "MeshGraphNet"                                    # 'GNN', 'SNN', 'LSTM_
 LOSS = "L2Loss"                                  # 'physicsLoss', 'L2Loss'
 
 ADD_NOISE = True
-NOISE_STD = 0.003
+NOISE_STD = 0.0003
 
 FLAG_ENABLED = False                   # Free Large-scale Adversarial Augmentation on Graphs (flag) for worst case noise addition
 FLAG_STEPS = 3        # M             # number of forward passes to get the worst case loss

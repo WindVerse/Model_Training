@@ -88,9 +88,9 @@ class FlagWindDataset(Dataset):
             run_flags, run_winds, run_targets = [], [], []
             
             for frame in range(valid_frames):
-                f_path = os.path.join(cfg.FLAG_DIR, f"flag_{iteration:03d}_{frame:03d}.npy")
-                w_path = os.path.join(cfg.WIND_DIR, f"wind_{iteration:03d}_{frame:03d}.npy")
-                t_path = os.path.join(cfg.TARGET_DIR, f"target_{iteration:03d}_{frame:03d}.npy")
+                f_path = os.path.join(cfg.FLAG_DIR, f"flag_{iteration:0{cfg.NO_DIGITS}d}_{frame:0{cfg.NO_DIGITS}d}.npy")
+                w_path = os.path.join(cfg.WIND_DIR, f"wind_{iteration:0{cfg.NO_DIGITS}d}_{frame:0{cfg.NO_DIGITS}d}.npy")
+                t_path = os.path.join(cfg.TARGET_DIR, f"target_{iteration:0{cfg.NO_DIGITS}d}_{frame:0{cfg.NO_DIGITS}d}.npy")
 
                 if not os.path.exists(t_path):
                     print(f"Warning: Missing target file {t_path}. Ending run load early.")

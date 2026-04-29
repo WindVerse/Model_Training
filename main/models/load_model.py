@@ -18,7 +18,7 @@ def load_model(device):
         from models.meshgraphnet.MeshGraphNet import MeshGraphNet as ModelClass
         model = ModelClass(
             node_input_dim=7,
-            edge_input_dim=4,
+            edge_input_dim=8,
             latent_dim=cfg.HIDDEN_DIM,
             num_processor_steps=cfg.NO_GNN_LAYERS,
             output_dim=3

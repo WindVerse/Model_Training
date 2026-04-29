@@ -123,7 +123,7 @@ def export_onnx(model, save_path, device):
     
     # 1. Define the INTEGER number of nodes
     num_nodes = cfg.HEIGHT * cfg.WIDTH
-    num_dummy_edges = 2000 
+    num_dummy_edges = 2300 
     
     # 2. Node features: 3 (vel) + 3 (wind) + 1 (pin mask) = 7
     dummy_node_features = torch.randn(num_nodes, 7, device=device)
@@ -135,7 +135,7 @@ def export_onnx(model, save_path, device):
     
     # 4. Edge attributes (shape must match the total number of combined edges)
     total_edges = dummy_edge_index.shape[1]
-    dummy_edge_attr = torch.randn(total_edges, 4, device=device)
+    dummy_edge_attr = torch.randn(total_edges, 8, device=device)
     
     # 3. Define the Names and Dynamic Axes for the new inputs
     input_names = ["node_features", "edge_index", "edge_attr"]
@@ -225,6 +225,12 @@ def trainModel(train_set, test_set, device):
     if os.path.exists(cfg.TOPOLOGY_PATH):
         edge_index_np = np.load(cfg.TOPOLOGY_PATH)
         base_edge_index = torch.from_numpy(edge_index_np).long().to(device)
+        
+        # Calculate Base Rest Lengths ONCE
+        initial_pos = torch.from_numpy(train_set.data_flags[0][0, :, :3]).float().to(device)
+        row_base, col_base = base_edge_index
+        rest_vec = initial_pos[row_base] - initial_pos[col_base]
+        base_rest_lengths = torch.norm(rest_vec, p=2, dim=-1, keepdim=True) # Shape: [E, 1]
     else:
         raise FileNotFoundError(f"Topology not found at {cfg.TOPOLOGY_PATH}")
 
@@ -344,21 +350,20 @@ def trainModel(train_set, test_set, device):
             node_features_flat = torch.cat([curr_vel_flat, x_wind_flat, batch_pin_mask], dim=-1)
 
             # 2. EDGE FEATURES (e_ij)
-            # MGN requires relative spatial distances between connected nodes.
             curr_pos_flat = curr_pos.view(-1, 3) 
             
-            # Extract sender (row) and receiver (col) nodes from the edge index
             row, col = edge_index_flat
-            
-            # Calculate relative 3D displacement vector (x_i - x_j)
             x_ij = curr_pos_flat[row] - curr_pos_flat[col]
-            
-            # Calculate distance magnitude (|x_ij|)
             x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
             
-            # Concatenate into the final edge feature tensor (shape: [num_edges, 4])
-            edge_attr_flat = torch.cat([x_ij, x_ij_norm], dim=-1)
-
+            # Relative Velocity (Damping)
+            v_ij = curr_vel_flat[row] - curr_vel_flat[col]
+            
+            # Rest Lengths (Tension) - Just repeat the pre-calculated base lengths!
+            rest_lengths_flat = base_rest_lengths.repeat(B*T, 1)
+            
+            # Concatenate into 8D edge features
+            edge_attr_flat = torch.cat([x_ij, x_ij_norm, v_ij, rest_lengths_flat], dim=-1)
 
             # --- FORWARD STEP ---
             optimizer.zero_grad()

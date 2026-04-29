@@ -194,20 +194,45 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         # 1. Calculate Kinematic Velocity (matching train loop)
         curr_vel = (curr_pos - prev_pos)
         
-        # 2. Get Wind
-        curr_wind = torch.from_numpy(gt_winds[t]).float().to(device)
-        # (Assuming your wind logic averages it for the nodes)
-        wind_expanded = curr_wind.mean(dim=0).unsqueeze(0).repeat(num_nodes, 1)
+        # 2. Get Wind (Using exact spatial logic to match training)
+        curr_wind_raw = torch.from_numpy(gt_winds[t]).float().to(device) # Shape: (8, 3)
+        
+        x = curr_pos[:, 0]
+        y = curr_pos[:, 1]
+        z = curr_pos[:, 2]
+        
+        ix = (x >= 0).long()
+        iy = (y >= 0).long()
+        iz = (z >= 0).long()
+        
+        cube_index = ix*4 + iy*2 + iz
+        cube_index_expanded = cube_index.unsqueeze(-1).expand(-1, 3)
+        
+        # Gather local wind (Note: dim=0 here because raw is just [8, 3], not batched)
+        wind_expanded = torch.gather(curr_wind_raw, 0, cube_index_expanded)
         
         # 3. BUILD NODE FEATURES (Velocity + Wind + Pin Mask)
         batch_pin_mask = cfg.PIN_MASK.to(device)
         node_features = torch.cat([curr_vel, wind_expanded, batch_pin_mask], dim=-1)
 
-        # 4. BUILD EDGE FEATURES (Vector + Magnitude)
+
+        # 4. BUILD EDGE FEATURES (Vector + Magnitude + Rel Vel + Rest Length)
         row, col = edge_index
+        
+        # A. Spatial Displacement
         x_ij = curr_pos[row] - curr_pos[col]
         x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
-        edge_attr = torch.cat([x_ij, x_ij_norm], dim=-1)
+        
+        # B. Relative Velocity (Damping)
+        v_ij = curr_vel[row] - curr_vel[col]
+        
+        # C. Rest Lengths (Tension)
+        # Because your calculate_edge_lengths() function returns a 1D tensor [E], 
+        # we must unsqueeze it to [E, 1] before concatenating.
+        rest_lengths_expanded = rest_lengths.unsqueeze(-1)
+        
+        # Concatenate into 8D edge features
+        edge_attr = torch.cat([x_ij, x_ij_norm, v_ij, rest_lengths_expanded], dim=-1)
         
         # --- B. Inference ---
         with torch.no_grad():

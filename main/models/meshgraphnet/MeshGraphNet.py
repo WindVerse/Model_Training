@@ -5,7 +5,7 @@ from models.meshgraphnet.processor import ProcessorBlock
 from models.meshgraphnet.decoder import Decoder
 
 class MeshGraphNet(nn.Module):
-    def __init__(self, node_input_dim=7, edge_input_dim=4, latent_dim=128, num_processor_steps=15, output_dim=3):
+    def __init__(self, node_input_dim=7, edge_input_dim=8, latent_dim=128, num_processor_steps=15, output_dim=3):
         super().__init__()
         
         # 1. Encoder
