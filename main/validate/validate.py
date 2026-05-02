@@ -226,7 +226,7 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
         
         # B. Relative Velocity (Damping)
-        v_ij = curr_vel[row] - curr_vel[col]
+        v_ij = curr_vel_scaled[row] - curr_vel_scaled[col]
         
         # C. Rest Lengths (Tension)
         # Because your calculate_edge_lengths() function returns a 1D tensor [E], 
