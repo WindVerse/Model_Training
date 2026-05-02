@@ -2,26 +2,19 @@ import torch
 import config as cfg
 
 def apply_training_noise(flag_seq, target_seq, device):
-    """
-    Injects random-walk noise into the current position and adjusts the target acceleration 
-    using MeshGraphNets Verlet integration math.
-    """
-    # 1. Extract Current Position (P_t) from the sequence
-    clean_pos = flag_seq[..., :3].clone()
+    clean_curr = flag_seq[..., :3].clone()  # P_t
+    clean_prev = flag_seq[..., 3:6].clone() # P_{t-1}
     
-    # 2. Generate Random Walk Noise ONLY for position
-    pos_noise = torch.randn_like(clean_pos, device=device) * cfg.NOISE_STD
+    # Apply independent noise to both frames
+    noise_curr = torch.randn_like(clean_curr, device=device) * cfg.NOISE_STD
+    noise_prev = torch.randn_like(clean_prev, device=device) * cfg.NOISE_STD
     
-    # 3. Mask out Pinned Nodes (so the pole doesn't shake)
-    H, W = cfg.HEIGHT, cfg.WIDTH
-    pinned_indices = [r * W for r in range(H)]
-    pos_noise[:, :, pinned_indices, :] = 0.0
+    flag_seq[..., :3] = clean_curr + noise_curr
+    flag_seq[..., 3:6] = clean_prev + noise_prev
     
-    # 4. Apply noise to the sequence
-    flag_seq[..., :3] = clean_pos + pos_noise
-    
-    # 5. Verlet Target Adjustment: A_adj = A_clean - (2.0 * pos_noise)
-    target_seq_adj = target_seq - (2.0 * pos_noise)
+    # Exact Verlet mathematical target adjustment for two noisy frames:
+    # A_adj = A_clean - 2(Noise_t) + Noise_{t-1}
+    target_seq_adj = target_seq - (2.0 * noise_curr) + noise_prev
     
     return flag_seq, target_seq_adj
 

@@ -326,7 +326,7 @@ def trainModel(train_set, test_set, device):
             )
                    
             x_nodes_flat = x_nodes.view(-1, F)
-            x_wind_flat = x_wind_expanded.view(-1, 3)
+            x_wind_flat = x_wind_expanded.view(-1, 3) / 50.0 # scale down the wind for stability
             y_target_flat = y_target.view(-1, 3)
             
             
@@ -345,7 +345,7 @@ def trainModel(train_set, test_set, device):
             # We combine your sequence history (x_nodes_flat) with the interpolated wind.
             # one-hot node type array (pinned=1 and free=0)
             batch_pin_mask = cfg.PIN_MASK.to(device).repeat(B*T, 1)
-            curr_vel_flat = curr_vel.view(-1, 3)
+            curr_vel_flat = curr_vel.view(-1, 3) * 50.0   # scale up the velocity for stability
             
             node_features_flat = torch.cat([curr_vel_flat, x_wind_flat, batch_pin_mask], dim=-1)
 

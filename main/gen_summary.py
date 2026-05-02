@@ -49,7 +49,6 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
         details += f"""
             "Hidden Dimension": {cfg.HIDDEN_DIM},
             "Number of GNN Layers": {cfg.NO_GNN_LAYERS},
-            "GNN Aggregation": {cfg.GNN_AGGREGATION},
             "Number of MLP Hidden Layers": {cfg.NO_MLP_HIDDEN_LAYERS},
             "Activation Function": {cfg.ACTIVATION},
         """

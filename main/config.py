@@ -15,7 +15,7 @@ if IS_TEST:
     EPOCHS = 20
     WARMUP_EPOCHS = 0
 else:
-    EPOCHS = 50
+    EPOCHS = 20
     WARMUP_EPOCHS = 0
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 2
@@ -79,7 +79,7 @@ MODEL = "MeshGraphNet"                                    # 'GNN', 'SNN', 'LSTM_
 LOSS = "L2Loss"                                  # 'physicsLoss', 'L2Loss'
 
 ADD_NOISE = True
-NOISE_STD = 0.0003
+NOISE_STD = 0.003
 
 FLAG_ENABLED = False                   # Free Large-scale Adversarial Augmentation on Graphs (flag) for worst case noise addition
 FLAG_STEPS = 3        # M             # number of forward passes to get the worst case loss
