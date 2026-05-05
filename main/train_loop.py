@@ -5,6 +5,7 @@ import os
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import shutil
 try:
     from torchviz import make_dot
     TORCHVIZ_AVAILABLE = True
@@ -233,6 +234,35 @@ def trainModel(train_set, test_set, device):
         base_rest_lengths = torch.norm(rest_vec, p=2, dim=-1, keepdim=True) # Shape: [E, 1]
     else:
         raise FileNotFoundError(f"Topology not found at {cfg.TOPOLOGY_PATH}")
+    
+    
+    # Save Train set stats using savez (creates an .npz file)
+    stats_path = os.path.join(run_dir, "train_stats.npz")
+    np.savez(
+        stats_path,
+        flag_mean=train_set.stats['flag_mean'].cpu().numpy(),
+        flag_std=train_set.stats['flag_std'].cpu().numpy(),
+        wind_mean=train_set.stats['wind_mean'].cpu().numpy(),
+        wind_std=train_set.stats['wind_std'].cpu().numpy(),
+        target_mean=train_set.stats['target_mean'].cpu().numpy(),
+        target_std=train_set.stats['target_std'].cpu().numpy()
+    )
+    print(f"Train set statistics saved to: {stats_path}")
+
+
+    # Save config file as it is
+    config_source_path = cfg.__file__
+
+    if config_source_path.endswith('.pyc'):
+        config_source_path = config_source_path[:-1]
+
+    config_dest_path = os.path.join(run_dir, "config_used.py")
+
+    shutil.copy2(config_source_path, config_dest_path)
+
+    print(f"Config file backed up exactly as written to: {config_dest_path}")
+    
+    
 
     # ==========================================
     # 4. TRAINING LOOP
@@ -326,7 +356,7 @@ def trainModel(train_set, test_set, device):
             )
                    
             x_nodes_flat = x_nodes.view(-1, F)
-            x_wind_flat = x_wind_expanded.view(-1, 3) / 50.0 # scale down the wind for stability
+            x_wind_flat = x_wind_expanded.view(-1, 3) / cfg.WIND_DOWN # scale down the wind for stability
             y_target_flat = y_target.view(-1, 3)
             
             
@@ -345,7 +375,7 @@ def trainModel(train_set, test_set, device):
             # We combine your sequence history (x_nodes_flat) with the interpolated wind.
             # one-hot node type array (pinned=1 and free=0)
             batch_pin_mask = cfg.PIN_MASK.to(device).repeat(B*T, 1)
-            curr_vel_flat = curr_vel.view(-1, 3) * 50.0   # scale up the velocity for stability
+            curr_vel_flat = curr_vel.view(-1, 3) * cfg.VEL_UP   # scale up the velocity for stability
             
             node_features_flat = torch.cat([curr_vel_flat, x_wind_flat, batch_pin_mask], dim=-1)
 

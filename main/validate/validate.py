@@ -193,7 +193,7 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         
         # 1. Calculate Kinematic Velocity (matching train loop)
         curr_vel = (curr_pos - prev_pos)
-        curr_vel_scaled = curr_vel * 50.0  # scale up for stability (matches training)
+        curr_vel_scaled = curr_vel * cfg.VEL_UP  # scale up for stability (matches training)
         
         # 2. Get Wind (Using exact spatial logic to match training)
         curr_wind_raw = torch.from_numpy(gt_winds[t]).float().to(device) # Shape: (8, 3)
@@ -211,7 +211,7 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         
         # Gather local wind (Note: dim=0 here because raw is just [8, 3], not batched)
         wind_expanded = torch.gather(curr_wind_raw, 0, cube_index_expanded)
-        wind_expanded_scaled = wind_expanded / 50.0  # scale down for stability (matches training)
+        wind_expanded_scaled = wind_expanded / cfg.WIND_DOWN  # scale down for stability (matches training)
         
         # 3. BUILD NODE FEATURES (Velocity + Wind + Pin Mask)
         batch_pin_mask = cfg.PIN_MASK.to(device)
@@ -306,10 +306,10 @@ if __name__ == "__main__":
     
     total_rmse = 0
     total_edge_err = 0
-    runs_to_validate = 20
+    runs_to_validate = 80
     
     for run_idx in range(runs_to_validate):
-        rmse, edge_err, time_pf = validate_run(dataset=test, model_ver="020", run_index=run_idx, sub_dir="temp")
+        rmse, edge_err, time_pf = validate_run(dataset=train, model_ver="083", run_index=run_idx, sub_dir="temp")
         total_rmse += rmse
         total_edge_err += edge_err
     

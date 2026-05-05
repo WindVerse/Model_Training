@@ -12,7 +12,7 @@ else:
     DATASET_VERSION = 6
 
 if IS_TEST:
-    EPOCHS = 20
+    EPOCHS = 2
     WARMUP_EPOCHS = 0
 else:
     EPOCHS = 20
@@ -25,10 +25,10 @@ HISTORY_WINDOW = 2                              # Number of past frames to consi
 
 if IS_TEST:
     NO_MLP_HIDDEN_LAYERS = 2
-    NO_GNN_LAYERS = 10
+    NO_GNN_LAYERS = 4
     NO_LSTM_LAYERS = 2
     CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
-    HIDDEN_DIM = 128
+    HIDDEN_DIM = 32
 else:
     NO_MLP_HIDDEN_LAYERS = 2
     NO_GNN_LAYERS = 10
@@ -65,6 +65,10 @@ NODE_DIM = 7                                   # Pos(3) + Vel(3) + Pin_Mask(1)
 WIND_DIM = 3
 EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist(1)]
 NUM_VERTICES = HEIGHT*WIDTH
+
+VEL_UP     = 50.0
+WIND_DOWN  = 100.0
+
 BASE_DATASET_PATH = "../../datasets/"
 
 

@@ -19,6 +19,8 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
             "Sequence Length": {cfg.SEQUENCE_LENGTH},
             "Dropout Rate": {cfg.DROPOUT_RATE},
             "Layer Normalization": {cfg.USE_LAYER_NORM},
+            "Velocity scale up": {cfg.VEL_UP},
+            "Wind scale down": {cfg.WIND_DOWN},
             "Total Trainable Parameters": {trainable_params},
     """
 
