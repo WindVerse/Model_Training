@@ -1,8 +1,9 @@
+
 import os
 import torch
 
 # Test or Not
-IS_TEST = False
+IS_TEST = True
 VALIDATE = False
 
 if IS_TEST:
@@ -12,25 +13,25 @@ else:
 
 if IS_TEST:
     EPOCHS = 2
-    WARMUP_EPOCHS = 1
+    WARMUP_EPOCHS = 0
 else:
-    EPOCHS = 15
-    WARMUP_EPOCHS = 5
+    EPOCHS = 20
+    WARMUP_EPOCHS = 0
 LEARNING_RATE = 0.0001
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 
 SEQUENCE_LENGTH = 1                             # make 1 for frame-by-frame training, >1 for sequence training (e.g., LSTM)
-HISTORY_WINDOW = 3                             # Number of past frames to consider for each prediction
+HISTORY_WINDOW = 2                              # Number of past frames to consider for each prediction
 
 if IS_TEST:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
+    NO_MLP_HIDDEN_LAYERS = 2
+    NO_GNN_LAYERS = 4
     NO_LSTM_LAYERS = 2
     CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
-    HIDDEN_DIM = 128
+    HIDDEN_DIM = 32
 else:
-    NO_MLP_HIDDEN_LAYERS = 5
-    NO_GNN_LAYERS = 5
+    NO_MLP_HIDDEN_LAYERS = 2
+    NO_GNN_LAYERS = 10
     NO_LSTM_LAYERS = 3
     CNN_CHANNELS = [16, 32, 64] # Try [16, 32] for shallower, or [16, 32, 64, 128] for deeper (Only for LSTM_CNN)
     HIDDEN_DIM = 128
@@ -44,7 +45,7 @@ USE_LAYER_NORM = True
 ########### Dataset Properties ##########
 #########################################
 
-TARGET_TYPE = "displacements"                    # displacements, accelerations, acc_new
+TARGET_TYPE = "acc"                    # displacements, accelerations, acc_new, acc
 EXIST_TOPOLOGY = True
 TRAIN_RATIO = 0.8
 if IS_TEST:
@@ -52,16 +53,22 @@ if IS_TEST:
 else:
     ITERATION_COUNT = 100
 FPS = 10
+NO_DIGITS = 3
 if IS_TEST:
     MAX_FRAMES = 30
 else:
     MAX_FRAMES = 300
 HEIGHT = 20
 WIDTH = 30
-NODE_DIM = 3 * HISTORY_WINDOW                    # Pos(3) * History_Window
+# NODE_DIM = 3 * HISTORY_WINDOW                    # Pos(3) * History_Window
+NODE_DIM = 7                                   # Pos(3) + Vel(3) + Pin_Mask(1)
 WIND_DIM = 3
 EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist(1)]
 NUM_VERTICES = HEIGHT*WIDTH
+
+VEL_UP     = 50.0
+WIND_DOWN  = 100.0
+
 BASE_DATASET_PATH = "../../datasets/"
 
 
@@ -72,11 +79,11 @@ BASE_DATASET_PATH = "../../datasets/"
 ########### Model Hyperparameters #######
 #########################################
 
-MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN'
-LOSS = "physicsLoss"                                  # 'physicsLoss', add more later
+MODEL = "MeshGraphNet"                                    # 'GNN', 'SNN', 'LSTM_CNN', 'MeshGraphNet'
+LOSS = "L2Loss"                                  # 'physicsLoss', 'L2Loss'
 
-ADD_NOISE = False
-NOISE_STD = 0.001
+ADD_NOISE = True
+NOISE_STD = 0.003
 
 FLAG_ENABLED = False                   # Free Large-scale Adversarial Augmentation on Graphs (flag) for worst case noise addition
 FLAG_STEPS = 3        # M             # number of forward passes to get the worst case loss
@@ -137,6 +144,18 @@ TARGET_DIR = os.path.join(DATASET_DIR, "targets", TARGET_TYPE)
 TOPOLOGY_PATH = os.path.join(DATASET_DIR, "topology", "topology_edge_index.npy")
 FACES_PATH = os.path.join(DATASET_DIR, "topology", "topology_faces.npy")
 
+#########################
+## Pinning Mask Values ##
+#########################
+
+# 1. Create Base Mask (N, 1)
+# 1.0 = Pinned, 0.0 = Free
+PIN_MASK = torch.zeros((HEIGHT*WIDTH, 1))
+# Pin Column 0 (Indices: 0, W, 2W...)
+# This matches the "Row-Major" flattening logic
+for r in range(HEIGHT):
+    idx = r * WIDTH
+    PIN_MASK[idx, 0] = 1.0
 
 DELTA_T = 1.0 / FPS
 

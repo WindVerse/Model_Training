@@ -11,5 +11,13 @@ def getLoss(train_set, device):
             device=device
         )
         return criterion
+    elif cfg.LOSS == 'L2Loss':
+        from loss.l2_loss import L2Loss
+        criterion = L2Loss(
+            mean=train_set.stats['target_mean'],
+            std=train_set.stats['target_std'],
+            device=device
+        )
+        return criterion
     else:
         raise ValueError(f"Unknown LOSS in config: {cfg.LOSS}")

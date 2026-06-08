@@ -19,6 +19,8 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
             "Sequence Length": {cfg.SEQUENCE_LENGTH},
             "Dropout Rate": {cfg.DROPOUT_RATE},
             "Layer Normalization": {cfg.USE_LAYER_NORM},
+            "Velocity scale up": {cfg.VEL_UP},
+            "Wind scale down": {cfg.WIND_DOWN},
             "Total Trainable Parameters": {trainable_params},
     """
 
@@ -45,6 +47,13 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
             "CNN Channels": {cfg.CNN_CHANNELS},
             "Activation Function": {cfg.ACTIVATION},
         """
+    elif cfg.MODEL == 'MeshGraphNet':
+        details += f"""
+            "Hidden Dimension": {cfg.HIDDEN_DIM},
+            "Number of GNN Layers": {cfg.NO_GNN_LAYERS},
+            "Number of MLP Hidden Layers": {cfg.NO_MLP_HIDDEN_LAYERS},
+            "Activation Function": {cfg.ACTIVATION},
+        """
 
     # --- Loss Configuration ---
     # Always add the header first
@@ -61,6 +70,10 @@ def generate_details(train_loss, test_rmse, test_edge_err, time_per_frame, train
             "Lambda Area": {cfg.LAMBDA_AREA},
             "Lambda Bend": {cfg.LAMBDA_BEND},
             "Lambda Pin": {cfg.LAMBDA_PIN},
+        """
+    elif cfg.LOSS == 'L2Loss':
+        details += f"""
+            "Loss Function": {cfg.LOSS},
         """
     else:
         # Handle standard losses (MSE, L1, etc)

@@ -63,7 +63,7 @@ class FlagWindDataset(Dataset):
         target = torch.from_numpy(target).float()
 
         # Normalize (using Pre-calculated Stats)
-        if self.stats:
+        if self.stats and cfg.MODEL != "MeshGraphNet":  # MeshGraphNet will handle normalization internally
             flag = (flag - self.stats['flag_mean']) / (self.stats['flag_std'] + 1e-8)
             wind = (wind - self.stats['wind_mean']) / (self.stats['wind_std'] + 1e-8)
             target = (target - self.stats['target_mean']) / (self.stats['target_std'] + 1e-8)
@@ -88,9 +88,9 @@ class FlagWindDataset(Dataset):
             run_flags, run_winds, run_targets = [], [], []
             
             for frame in range(valid_frames):
-                f_path = os.path.join(cfg.FLAG_DIR, f"flag_{iteration:03d}_{frame:03d}.npy")
-                w_path = os.path.join(cfg.WIND_DIR, f"wind_{iteration:03d}_{frame:03d}.npy")
-                t_path = os.path.join(cfg.TARGET_DIR, f"target_{iteration:03d}_{frame:03d}.npy")
+                f_path = os.path.join(cfg.FLAG_DIR, f"flag_{iteration:0{cfg.NO_DIGITS}d}_{frame:0{cfg.NO_DIGITS}d}.npy")
+                w_path = os.path.join(cfg.WIND_DIR, f"wind_{iteration:0{cfg.NO_DIGITS}d}_{frame:0{cfg.NO_DIGITS}d}.npy")
+                t_path = os.path.join(cfg.TARGET_DIR, f"target_{iteration:0{cfg.NO_DIGITS}d}_{frame:0{cfg.NO_DIGITS}d}.npy")
 
                 if not os.path.exists(t_path):
                     print(f"Warning: Missing target file {t_path}. Ending run load early.")
