@@ -394,7 +394,7 @@ def trainModel(train_set, test_set, device):
             
             # Concatenate into 8D edge features
             edge_attr_flat = torch.cat([x_ij, x_ij_norm, v_ij, rest_lengths_flat], dim=-1)
-
+            
             # --- FORWARD STEP ---
             optimizer.zero_grad()
         

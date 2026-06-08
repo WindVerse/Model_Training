@@ -306,13 +306,16 @@ if __name__ == "__main__":
     
     total_rmse = 0
     total_edge_err = 0
-    runs_to_validate = 80
+    runs_to_validate = 4
+    total_time = 0
     
     for run_idx in range(runs_to_validate):
-        rmse, edge_err, time_pf = validate_run(dataset=train, model_ver="083", run_index=run_idx, sub_dir="temp")
+        rmse, edge_err, time_pf = validate_run(dataset=train, model_ver="185", run_index=run_idx, sub_dir="temp")
         total_rmse += rmse
         total_edge_err += edge_err
+        total_time += time_pf
     
     print("\n=== Validation Complete ===")
     print(f"Average RMSE over {runs_to_validate} runs: {total_rmse / runs_to_validate:.3f} m")
     print(f"Average Edge Error over {runs_to_validate} runs: {total_edge_err / runs_to_validate * 100:.3f}%")
+    print(f"Average Time per Frame: {total_time / runs_to_validate:.3f} seconds")
