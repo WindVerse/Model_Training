@@ -36,7 +36,7 @@ def integrate(pos, vel, accel, dt):
 
 def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"🎥 Starting Validation Rollout for Run {run_index+1} on {device}...")
+    print(f"Starting Validation Rollout for Run {run_index+1} on {device}...")
     
     # Extract Ground Truth
     gt_flags = dataset.data_flags[run_index] 
@@ -55,7 +55,7 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
         
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
-    print("✅ Model Loaded.")
+    print("Model Loaded.")
 
     # 3. Load Topology
     edge_index_np = np.load(cfg.TOPOLOGY_PATH)
@@ -75,11 +75,14 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     std_acc   = to_tensor(dataset.stats['target_std']).view(1, -1)
 
     # 5. ROLLOUT LOOP
-    print("🚀 Simulating...")
+    print("Simulating...")
     
     # Initial State (Frame 0)
     curr_pos = torch.from_numpy(gt_flags[0, :, :3]).float().to(device)
     curr_vel = torch.from_numpy(gt_flags[0, :, 3:]).float().to(device)
+    
+    # LSTM
+    hidden_state = None
     
     predictions = []
     
@@ -97,7 +100,25 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
         
         # B. Model Inference
         with torch.no_grad():
-            pred_norm_acc = model(norm_state, norm_wind, edge_index)
+            if 'LSTM' in cfg.MODEL:
+                # 1. Reshape for LSTM: (Batch, Seq_Len=1, Features)
+                # We treat every node as a batch item
+                lstm_input_nodes = norm_state.unsqueeze(1) # (N, 1, F)
+                lstm_input_wind  = norm_wind.unsqueeze(1)  # (N, 1, F)
+                
+                # 2. Forward Pass with State
+                # Ensure your LSTM forward method accepts and returns hidden_state!
+                # If your model.forward() doesn't support passing hidden state, 
+                # you strictly CANNOT validate autoregressively.
+                
+                # Note: This assumes your FlagLSTM_CNN_Net forward returns (output, hidden)
+                # If it only returns output, the LSTM is resetting every frame (BAD).
+                pred_norm_acc, hidden_state = model(lstm_input_nodes, lstm_input_wind, hidden=hidden_state)
+                
+                # Remove sequence dim for integration: (N, 1, 3) -> (N, 3)
+                pred_norm_acc = pred_norm_acc.squeeze(1)
+            else:
+                pred_norm_acc = model(norm_state, norm_wind, edge_index)
         
         # C. Physics Integration
         # De-normalize Acceleration
@@ -125,14 +146,22 @@ def validate_rollout(dataset, model_ver, run_index=0, sub_dir=None):
     predictions.append(curr_pos.cpu().numpy())
     predictions = np.array(predictions)
     
-    print("✅ Rollout Complete. Generating Animation...")
-    create_comparison_video(gt_flags[:, :, :3], predictions, model_ver, run_index, sub_dir=sub_dir)
+    print("Rollout Complete. Generating Animation...")
+    create_comparison_video(gt_flags[:, :, :3], predictions, model_ver, run_index, sub_dir=sub_dir, winds=gt_winds)
 
-def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_dir=None):
+def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_dir=None, winds=None):
     """Creates a side-by-side 3D animation."""
     fig = plt.figure(figsize=(12, 6))
     ax1 = fig.add_subplot(121, projection='3d')
     ax2 = fig.add_subplot(122, projection='3d')
+    
+    # --- mini wind visualization ---
+    wind_ax = fig.add_axes([0.4, 0.75, 0.25, 0.25], projection='3d')
+    wind_ax.axis('off') 
+    wind_ax.set_xlim(-1, 1); wind_ax.set_ylim(-1, 1); wind_ax.set_zlim(-1, 1)
+    
+    # --- Wind Magnitude Text ---
+    wind_mag_text = fig.text(0.5, 0.82, '', ha='center', va='top', fontsize=8, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", edgecolor="gray", alpha=0.8))
     
     ax1.set_title(f"Ground Truth (Run {run_index+1})")
     ax2.set_title("GNN Prediction (Rollout)")
@@ -150,6 +179,8 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
     scat1 = ax1.scatter([], [], [], c='b', s=2)
     scat2 = ax2.scatter([], [], [], c='r', s=2)
     txt = fig.suptitle('')
+    
+    wind_quivers = []
 
     def update(frame):
         gt_p = ground_truth[frame]
@@ -159,8 +190,31 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
         scat2._offsets3d = (pred_p[:,0], pred_p[:,1], pred_p[:,2])
         
         txt.set_text(f"Frame: {frame}/{len(ground_truth)}")
-        return scat1, scat2
-
+        
+# --- UPDATE WIND ARROW & TEXT ---
+        if winds is not None:
+            nonlocal wind_quivers
+            if wind_quivers:
+                for quiv in wind_quivers:
+                    quiv.remove()
+            wind_quivers.clear()
+            
+            avg_w = np.mean(winds[frame], axis=0)
+            mag = np.sqrt(avg_w[0]**2 + avg_w[1]**2 + avg_w[2]**2)
+            
+            if mag > 1e-8:
+                dir_w = avg_w / mag
+            else:
+                dir_w = np.zeros(3)
+                
+            quiv = wind_ax.quiver(0, 0, 0, dir_w[0], dir_w[1], dir_w[2], 
+                                  length=1.0, color='magenta', linewidth=3, arrow_length_ratio=0.3)
+            wind_quivers.append(quiv)
+            
+            wind_mag_text.set_text(f"Wind Strength: {mag:.4f}")
+            
+        return scat1, scat2, txt, wind_mag_text
+        
     ani = animation.FuncAnimation(fig, update, frames=len(ground_truth), interval=1000*cfg.DELTA_T, blit=False)
     
     # Save
@@ -174,14 +228,13 @@ def create_comparison_video(ground_truth, prediction, model_ver, run_index, sub_
     
     try:
         ani.save(save_path, writer='ffmpeg', fps=20)
-        print(f"🎬 Video saved to: {save_path}")
+        print(f"Video saved to: {save_path}")
     except:
-        print("⚠️ FFmpeg not found. Saving as GIF instead.")
+        print("FFmpeg not found. Saving as GIF instead.")
         ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=20)
-        print(f"🎬 GIF saved to: {save_path.replace('.mp4', '.gif')}")
+        print(f"GIF saved to: {save_path.replace('.mp4', '.gif')}")
 
 if __name__ == "__main__":    
     train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO) 
-    validate_rollout(dataset=test, model_ver="039", run_index=0, sub_dir="temp")
-    # for run_idx in range(0, 20):
-    #     validate_rollout(dataset=test, model_ver="005", run_index=run_idx, sub_dir="temp")
+    for run_idx in range(0, 20):
+        validate_rollout(dataset=test, model_ver="114", run_index=run_idx, sub_dir="temp")
