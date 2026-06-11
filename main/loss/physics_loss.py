@@ -101,33 +101,48 @@ class PhysicsLoss(nn.Module):
         return areas, normals
 
     def de_normalize(self, tensor_norm):
+        """Converts normalized predictions back into real-world physical acceleration."""
         return (tensor_norm * self.std) + self.mean
 
     def compute_chamfer_loss(self, pred_pos, target_pos):
+        """Computes symmetric Chamfer distance between predicted and target point clouds."""
         dists = torch.cdist(pred_pos, target_pos) 
         min_dist_pred, _ = torch.min(dists, dim=2) 
         min_dist_target, _ = torch.min(dists, dim=1) 
         return torch.mean(min_dist_pred) + torch.mean(min_dist_target)
     
-    def forward(self, pred_norm, target_norm, curr_pos, curr_vel):
-        # Standard MSE Loss (acceleration matching in normalized space)
+    def forward(self, pred_raw, target_raw, curr_pos, curr_vel):
+        """
+        Calculates the combined ML and Physics loss.
+        pred_raw: Output from MeshGraphNet (Normalized Acceleration)
+        target_raw: True target (Raw Physical Acceleration)
+        curr_pos: Current position of nodes (Real Physical Space)
+        curr_vel: Current velocity of nodes (Real Physical Space)
+        """
+        # 1. Normalize ONLY the target (MeshGraphNet natively outputs in normalized space)
+        if cfg.MODEL == 'MeshGraphNet':   
+            target_norm = (target_raw - self.mean) / (self.std + 1e-8)
+        else:
+            target_norm = target_raw
+            
+        pred_norm = pred_raw
+
+        # 2. Standard MSE Loss (Acceleration matching in normalized space)
         mse_loss = F.mse_loss(pred_norm, target_norm)
         rmse_loss = torch.sqrt(mse_loss)
 
-        # INTEGRATION
+        # 3. INTEGRATION to physical space
         pred_accel_real = self.de_normalize(pred_norm)
         pred_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * pred_accel_real * (self.dt ** 2))
         
         target_accel_real = self.de_normalize(target_norm)
         target_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * target_accel_real * (self.dt ** 2))
         
-        # Positional RMSE Loss (Node-to-Node matching)
+        # 4. Positional & Chamfer Loss (Node-to-Node matching)
         positional_loss = torch.sqrt(F.mse_loss(pred_pos_next, target_pos_next))
-        
-        # Chamfer Loss
         chamfer_loss = self.compute_chamfer_loss(pred_pos_next, target_pos_next)
 
-        # EDGE LOSS (Stretch Constraint)
+        # 5. EDGE LOSS (Stretch Constraint)
         p_src = pred_pos_next[:, self.src, :] # (B, E, 3)
         p_dst = pred_pos_next[:, self.dst, :] # (B, E, 3)
         curr_vec = p_src - p_dst
@@ -136,32 +151,23 @@ class PhysicsLoss(nn.Module):
         length_diff = curr_lengths - self.rest_lengths.unsqueeze(0) # Broadcast to batch
         edge_loss = torch.mean(length_diff ** 2)
 
-        # 5. PIN LOSS (Anchor Constraint)
+        # 6. PIN LOSS (Anchor Constraint)
         current_pinned_pos = pred_pos_next[:, self.pinned_idx, :] # (B, N_Pin, 3)
         target_pos_expanded = self.pinned_pos_target.unsqueeze(0).expand_as(current_pinned_pos)
         pin_loss = F.mse_loss(current_pinned_pos, target_pos_expanded)
 
-        # ====================================================
-        # SURFACE PHYSICS LOSSES
-        # ====================================================
+        # 7. SURFACE PHYSICS LOSSES
         pred_areas, pred_normals = self.get_face_areas_and_normals(pred_pos_next)
 
-        # 6. AREA LOSS (Shear Constraint)
-        # Prevents stretching diagonally. Compare predicted areas to rest areas.
+        # AREA LOSS (Shear Constraint)
         rest_areas_expanded = self.rest_areas.unsqueeze(0).expand_as(pred_areas)
         area_loss = F.mse_loss(pred_areas, rest_areas_expanded)
 
-        # 7. BENDING LOSS (Dihedral Angle Constraint)
-        # Prevents sharp folding. Computes dot product of normals of adjacent faces.
+        # BENDING LOSS (Dihedral Angle Constraint)
         n1 = pred_normals[:, self.adj_faces[:, 0], :] # (B, Num_Adj_Pairs, 3)
         n2 = pred_normals[:, self.adj_faces[:, 1], :] 
-        
-        # Dot product (sum along coordinate axis)
         dot_product = torch.sum(n1 * n2, dim=2) # (B, Num_Adj_Pairs)
-        
-        # Target is 1.0 (faces are perfectly flat/parallel to each other)
         bend_loss = torch.mean((1.0 - dot_product) ** 2)
-        # ====================================================
 
         # 8. Total Loss Integration
         total_loss = (self.lambda_rmse * rmse_loss) + \
@@ -172,5 +178,4 @@ class PhysicsLoss(nn.Module):
                      (self.lambda_bend * bend_loss) + \
                      (self.lambda_pin * pin_loss)
 
-        # Return the new losses as well so you can log them
         return total_loss, rmse_loss, positional_loss, chamfer_loss, edge_loss, area_loss, bend_loss, pin_loss
