@@ -314,6 +314,9 @@ def trainModel(train_set, test_set, device):
         criterion.lambda_edge = cfg.LAMBDA_EDGE * multiplier
         criterion.lambda_area = cfg.LAMBDA_AREA * multiplier
         criterion.lambda_bend = cfg.LAMBDA_BEND * multiplier
+        criterion.lambda_chamfer = cfg.LAMBDA_CHAMFER * multiplier
+        criterion.lambda_pin = cfg.LAMBDA_PIN * multiplier
+        criterion.lambda_positional = cfg.LAMBDA_POSITIONAL * multiplier
         
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.EPOCHS} [Train]")
         
