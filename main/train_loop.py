@@ -70,6 +70,18 @@ def save_architecture_diagram(model, save_path, device):
             # Trace (Unpack tuple!)
             y, _ = model(dummy_nodes, dummy_wind)
         
+        elif cfg.MODEL == 'MeshGraphNet':
+            # MeshGraphNet inputs: Node Features, Edge Index, Edge Attributes
+            N_dummy = cfg.HEIGHT * cfg.WIDTH
+            E_dummy = 2 * ((cfg.HEIGHT - 1) * cfg.WIDTH + (cfg.WIDTH - 1) * cfg.HEIGHT)
+
+            x_nodes = torch.randn(N_dummy, 7).to(device)  # 3 (vel) + 3 (wind) + 1 (pin mask)
+            edge_index = torch.randint(0, N_dummy, (2, E_dummy)).to(device)
+            edge_attr = torch.randn(E_dummy, 8).to(device)
+            
+            # Trace (Direct output, no tuple)
+            y = model(x_nodes, edge_index, edge_attr)
+        
         else:
             return # Unknown model type, skip viz
 
@@ -324,42 +336,42 @@ def trainModel(train_set, test_set, device):
             # --- Extract Positions from History Window ---
             # Index 0:3 is P_t (Current Position)
             curr_pos = flag_seq[..., :3].view(B*T, N, 3)
-            
             # Index 3:6 is P_{t-1} (Previous Position)
             prev_pos = flag_seq[..., 3:6].view(B*T, N, 3)
             
-            # --- Calculate Kinematic Velocity ---
-            # V_t = (P_t - P_{t-1}) / dt
+            # ==========================================
+            # 1. GLOBAL SCALING (Velocity & Wind)
+            # ==========================================
+            # Calculate physical velocity for the Loss Function (Must remain unscaled)
             curr_vel = (curr_pos - prev_pos)
-            # Get WIND vectors
-
-            # curr_pos shape: (B*T, N, 3)
+            
+            # Scale velocity up for the Neural Networks
+            curr_vel_scaled = curr_vel * cfg.VEL_UP
+            
+            # Get WIND vectors and scale them down immediately
             x = curr_pos[..., 0]
             y = curr_pos[..., 1]
             z = curr_pos[..., 2]
 
-            # Determine which half each coordinate is in
-            ix = (x >= 0).long()   # 0 if negative, 1 if positive
+            ix = (x >= 0).long()
             iy = (y >= 0).long()
             iz = (z >= 0).long()
 
-            # Convert 3D index → 1D index (0 to 7)
             cube_index = ix*4 + iy*2 + iz
-
-            # Expand cube_index for gathering
             cube_index_expanded = cube_index.unsqueeze(-1).expand(-1, -1, 3)
 
-            x_wind_expanded = torch.gather(
-                x_wind_raw,
-                1,
-                cube_index_expanded
-            )
-                   
-            x_nodes_flat = x_nodes.view(-1, F)
-            x_wind_flat = x_wind_expanded.view(-1, 3) / cfg.WIND_DOWN # scale down the wind for stability
+            x_wind_expanded = torch.gather(x_wind_raw, 1, cube_index_expanded)
+            x_wind_scaled = x_wind_expanded / cfg.WIND_DOWN
+            
+            # ==========================================
+            # 2. FLATTEN FEATURES
+            # ==========================================
+            curr_pos_flat = curr_pos.view(-1, 3)
+            curr_vel_flat = curr_vel_scaled.view(-1, 3)  # Now uses SCALED velocity globally
+            x_wind_flat = x_wind_scaled.view(-1, 3)      # Now uses SCALED wind globally
             y_target_flat = y_target.view(-1, 3)
-            
-            
+            batch_pin_mask = cfg.PIN_MASK.to(device).repeat(B*T, 1)
+
             # --- PREPARE BATCH EDGES ---
             edge_index_batch = []
             for i in range(B * T):
@@ -367,39 +379,35 @@ def trainModel(train_set, test_set, device):
             edge_index_flat = torch.cat(edge_index_batch, dim=1)
 
             # ==========================================
-            # MESHGRAPHNETS FEATURE ENCODING
+            # 3. BUILD MODEL-SPECIFIC INPUTS
             # ==========================================
+            # We explicitly rebuild the inputs so ALL models use the scaled data
             
-            # 1. NODE FEATURES (v_i)
-            # MGN expects a single flat vector per node combining physical states.
-            # We combine your sequence history (x_nodes_flat) with the interpolated wind.
-            # one-hot node type array (pinned=1 and free=0)
-            batch_pin_mask = cfg.PIN_MASK.to(device).repeat(B*T, 1)
-            curr_vel_flat = curr_vel.view(-1, 3) * cfg.VEL_UP   # scale up the velocity for stability
+            # For GNN / SNN / LSTM: (Pos + Scaled Vel) -> 6 Features
+            x_nodes_flat = torch.cat([curr_pos_flat, curr_vel_flat], dim=-1)
             
+            # For MeshGraphNet: (Scaled Vel + Scaled Wind + Pin Mask) -> 7 Features
             node_features_flat = torch.cat([curr_vel_flat, x_wind_flat, batch_pin_mask], dim=-1)
 
-            # 2. EDGE FEATURES (e_ij)
-            curr_pos_flat = curr_pos.view(-1, 3) 
-            
+            # EDGE FEATURES (Common for GNN and MeshGraphNet)
             row, col = edge_index_flat
             x_ij = curr_pos_flat[row] - curr_pos_flat[col]
             x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
-            
-            # Relative Velocity (Damping)
-            v_ij = curr_vel_flat[row] - curr_vel_flat[col]
-            
-            # Rest Lengths (Tension) - Just repeat the pre-calculated base lengths!
+            v_ij = curr_vel_flat[row] - curr_vel_flat[col] # Uses scaled relative velocity
             rest_lengths_flat = base_rest_lengths.repeat(B*T, 1)
             
-            # Concatenate into 8D edge features
             edge_attr_flat = torch.cat([x_ij, x_ij_norm, v_ij, rest_lengths_flat], dim=-1)
-            
+                        
             # --- FORWARD STEP ---
             optimizer.zero_grad()
         
             # 1. Call Model
-            out = model(node_features_flat, edge_index_flat, edge_attr_flat)
+            if cfg.MODEL == 'MeshGraphNet':
+                out = model(node_features_flat, edge_index_flat, edge_attr_flat)
+            elif cfg.MODEL == 'GNN':
+                out = model(x_nodes_flat, x_wind_flat, edge_index_flat)
+            else:
+                out = model(x_nodes_flat, x_wind_flat, edge_index_flat)
         
             # 2. Handle Tuple Return (for LSTM) vs Tensor Return (for GNN/SNN)
             if isinstance(out, tuple):

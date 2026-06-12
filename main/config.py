@@ -60,14 +60,6 @@ else:
     MAX_FRAMES = 300
 HEIGHT = 20
 WIDTH = 30
-# NODE_DIM = 3 * HISTORY_WINDOW                    # Pos(3) * History_Window
-NODE_DIM = 7                                   # Pos(3) + Vel(3) + Pin_Mask(1)
-WIND_DIM = 3
-EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist(1)]
-NUM_VERTICES = HEIGHT*WIDTH
-
-VEL_UP     = 50.0
-WIND_DOWN  = 100.0
 
 BASE_DATASET_PATH = "../../datasets/"
 
@@ -79,8 +71,21 @@ BASE_DATASET_PATH = "../../datasets/"
 ########### Model Hyperparameters #######
 #########################################
 
-MODEL = "MeshGraphNet"                                    # 'GNN', 'SNN', 'LSTM_CNN', 'MeshGraphNet'
+MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN', 'MeshGraphNet'
 LOSS = "L2Loss"                                  # 'physicsLoss', 'L2Loss'
+
+# NODE_DIM = 3 * HISTORY_WINDOW                    # Pos(3) * History_Window
+if MODEL == "MeshGraphNet":
+    NODE_DIM = 7                                   # Pos(3) + Vel(3) + Pin_Mask(1)
+else:
+    NODE_DIM = 6                                   # Pos(3) + Vel(3)
+WIND_DIM = 3
+EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist(1)]
+NUM_VERTICES = HEIGHT*WIDTH
+
+VEL_UP     = 50.0
+WIND_DOWN  = 100.0
+
 
 ADD_NOISE = True
 NOISE_STD = 0.003

@@ -123,7 +123,7 @@ def create_comparison_video(ground_truth, prediction, save_dir, run_index, winds
     
     save_path = os.path.join(save_dir, f"validation_run_{run_index+1}.mp4")
     try:
-        ani.save(save_path, writer='ffmpeg', fps=20)
+        ani.save(save_path, writer='ffmpeg', fps=cfg.FPS)
         print(f"Video saved to: {save_path}")
     except:
         print("FFmpeg not found. Saving as GIF instead.")
@@ -182,7 +182,7 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     
     T = 0
     
-# 6. UNIFIED INFERENCE LOOP
+    # 6. UNIFIED INFERENCE LOOP
     print("Simulating and Computing Metrics...")
     for t in range(total_frames - 1):
         t1 = time.time()
@@ -191,54 +191,66 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         curr_pos = history_buffer[-1]
         prev_pos = history_buffer[-2]
         
-        # 1. Calculate Kinematic Velocity (matching train loop)
+        # ==========================================
+        # 1. GLOBAL SCALING (Velocity & Wind)
+        # ==========================================
+        # Calculate Kinematic Velocity
         curr_vel = (curr_pos - prev_pos)
-        curr_vel_scaled = curr_vel * cfg.VEL_UP  # scale up for stability (matches training)
+        curr_vel_scaled = curr_vel * cfg.VEL_UP  # Scale up globally
         
-        # 2. Get Wind (Using exact spatial logic to match training)
+        # Get Wind and Expand Spatially
         curr_wind_raw = torch.from_numpy(gt_winds[t]).float().to(device) # Shape: (8, 3)
         
-        x = curr_pos[:, 0]
-        y = curr_pos[:, 1]
-        z = curr_pos[:, 2]
-        
-        ix = (x >= 0).long()
-        iy = (y >= 0).long()
-        iz = (z >= 0).long()
-        
+        x, y, z = curr_pos[:, 0], curr_pos[:, 1], curr_pos[:, 2]
+        ix, iy, iz = (x >= 0).long(), (y >= 0).long(), (z >= 0).long()
         cube_index = ix*4 + iy*2 + iz
         cube_index_expanded = cube_index.unsqueeze(-1).expand(-1, 3)
         
-        # Gather local wind (Note: dim=0 here because raw is just [8, 3], not batched)
         wind_expanded = torch.gather(curr_wind_raw, 0, cube_index_expanded)
-        wind_expanded_scaled = wind_expanded / cfg.WIND_DOWN  # scale down for stability (matches training)
+        wind_expanded_scaled = wind_expanded / cfg.WIND_DOWN  # Scale down globally
         
-        # 3. BUILD NODE FEATURES (Velocity + Wind + Pin Mask)
-        batch_pin_mask = cfg.PIN_MASK.to(device)
-        node_features = torch.cat([curr_vel_scaled, wind_expanded_scaled, batch_pin_mask], dim=-1)
+        # ==========================================
+        # 2. BUILD MODEL-SPECIFIC INPUTS
+        # ==========================================
+        if cfg.MODEL == 'MeshGraphNet':
+            # 3. BUILD NODE FEATURES (Scaled Vel + Scaled Wind + Pin Mask)
+            batch_pin_mask = cfg.PIN_MASK.to(device)
+            node_features = torch.cat([curr_vel_scaled, wind_expanded_scaled, batch_pin_mask], dim=-1)
 
-
-        # 4. BUILD EDGE FEATURES (Vector + Magnitude + Rel Vel + Rest Length)
-        row, col = edge_index
+            # 4. BUILD EDGE FEATURES 
+            row, col = edge_index
+            x_ij = curr_pos[row] - curr_pos[col]
+            x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
+            v_ij = curr_vel_scaled[row] - curr_vel_scaled[col] # Uses scaled relative velocity
+            rest_lengths_expanded = rest_lengths.unsqueeze(-1)
+            
+            edge_attr = torch.cat([x_ij, x_ij_norm, v_ij, rest_lengths_expanded], dim=-1)
+            
+            # --- B. Inference ---
+            with torch.no_grad():
+                pred_norm_acc = model(node_features, edge_index, edge_attr)
+                
+        else:
+            # A. Prepare Input for GNN / LSTM
+            # Use the SCALED velocity here!
+            curr_state = torch.cat([curr_pos, curr_vel_scaled], dim=1) 
+            norm_state = (curr_state - mean_flag) / (std_flag + 1e-8)
+            
+            # Use the SCALED spatial wind here!
+            wind_mean = wind_expanded_scaled.mean(dim=0)
+            wind_expanded_flat = wind_mean.unsqueeze(0).repeat(num_nodes, 1)
+            norm_wind = (wind_expanded_flat - mean_wind) / (std_wind + 1e-8)
+            
+            # B. Model Inference
+            with torch.no_grad():
+                if 'LSTM' in cfg.MODEL:
+                    lstm_input_nodes = norm_state.unsqueeze(1)
+                    lstm_input_wind  = norm_wind.unsqueeze(1) 
+                    pred_norm_acc, hidden_state = model(lstm_input_nodes, lstm_input_wind, hidden=hidden_state)
+                    pred_norm_acc = pred_norm_acc.squeeze(1)
+                else:
+                    pred_norm_acc = model(norm_state, norm_wind, edge_index)
         
-        # A. Spatial Displacement
-        x_ij = curr_pos[row] - curr_pos[col]
-        x_ij_norm = torch.norm(x_ij, p=2, dim=-1, keepdim=True)
-        
-        # B. Relative Velocity (Damping)
-        v_ij = curr_vel_scaled[row] - curr_vel_scaled[col]
-        
-        # C. Rest Lengths (Tension)
-        # Because your calculate_edge_lengths() function returns a 1D tensor [E], 
-        # we must unsqueeze it to [E, 1] before concatenating.
-        rest_lengths_expanded = rest_lengths.unsqueeze(-1)
-        
-        # Concatenate into 8D edge features
-        edge_attr = torch.cat([x_ij, x_ij_norm, v_ij, rest_lengths_expanded], dim=-1)
-        
-        # --- B. Inference ---
-        with torch.no_grad():
-            pred_norm_acc = model(node_features, edge_index, edge_attr)
         
         # --- C. DENORMALIZE THE PREDICTION ---
         pred_real_acc = pred_norm_acc * std_acc + mean_acc

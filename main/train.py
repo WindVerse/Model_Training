@@ -24,7 +24,7 @@ if __name__ == "__main__":
         print("Error: One or more dataset directories are missing.")
     
     # Load and Split Dataset
-    train_set, test_set = FlagWindDataset.load_and_split(train_ratio=0.8)
+    train_set, test_set = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO)
     
     # Train Model
     model = trainModel(train_set, test_set, device)
