@@ -127,7 +127,7 @@ def create_comparison_video(ground_truth, prediction, save_dir, run_index, winds
         print(f"Video saved to: {save_path}")
     except:
         print("FFmpeg not found. Saving as GIF instead.")
-        ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=20)
+        ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=cfg.FPS)
         print(f"GIF saved to: {save_path.replace('.mp4', '.gif')}")
 
 def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
