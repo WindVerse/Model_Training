@@ -71,8 +71,8 @@ BASE_DATASET_PATH = "../../datasets/"
 ########### Model Hyperparameters #######
 #########################################
 
-MODEL = "GNN"                                    # 'GNN', 'SNN', 'LSTM_CNN', 'MeshGraphNet'
-LOSS = "L2Loss"                                  # 'physicsLoss', 'L2Loss'
+MODEL = "MeshGraphNet"                                    # 'GNN', 'SNN', 'LSTM_CNN', 'MeshGraphNet'
+LOSS = "physicsLoss"                                  # 'physicsLoss', 'L2Loss'
 
 # NODE_DIM = 3 * HISTORY_WINDOW                    # Pos(3) * History_Window
 if MODEL == "MeshGraphNet":
@@ -80,7 +80,10 @@ if MODEL == "MeshGraphNet":
 else:
     NODE_DIM = 6                                   # Pos(3) + Vel(3)
 WIND_DIM = 3
-EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist(1)]
+if MODEL == "MeshGraphNet":
+    EDGE_DIM = 8
+else:
+    EDGE_DIM = 7                                     # [Rel_Pos(3), Rel_Vel(3), Dist(1)]
 NUM_VERTICES = HEIGHT*WIDTH
 
 VEL_UP     = 50.0
@@ -104,8 +107,8 @@ LAMBDA_POSITIONAL = 0
 LAMBDA_CHAMFER = 100
 LAMBDA_EDGE = 100
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
-LAMBDA_AREA = 0
-LAMBDA_BEND = 0
+LAMBDA_AREA = 0.1
+LAMBDA_BEND = 0.1
 LAMBDA_PIN = 0.0       # Weight for Pinned Nodes (Pole)
 
 
