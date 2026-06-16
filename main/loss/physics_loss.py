@@ -52,11 +52,14 @@ class PhysicsLoss(nn.Module):
         rest_areas, _ = self.get_face_areas_and_normals(pos_batch)
         self.rest_areas = rest_areas.squeeze(0) # (Num_Faces,)
 
-        # 5. Setup Pinned Nodes (Column 0)
-        H, W = cfg.HEIGHT, cfg.WIDTH
-        pinned_indices = [r * W for r in range(H)]
-        self.pinned_idx = torch.tensor(pinned_indices, dtype=torch.long, device=device)
+        # 5. DYNAMIC PINNED NODES (Using Config Mask)
+        # Load the mask: (N, 1) where 1.0 = pinned, 0.0 = free
+        pin_mask_tensor = cfg.PIN_MASK.to(device)
+        # Extract the specific 1D indices of the pinned nodes for the pin_loss evaluation
+        self.pinned_idx = torch.where(pin_mask_tensor.squeeze() == 1.0)[0]
         self.pinned_pos_target = pos_only[self.pinned_idx] # (N_Pin, 3)
+        # Create an inverted mask for the integration step (0.0 for pinned, 1.0 for free)
+        self.free_mask = 1.0 - pin_mask_tensor # Shape: (N, 1)
 
     def _build_adjacent_faces(self, faces_np):
         """Finds pairs of triangles that share an exact edge."""
@@ -135,24 +138,35 @@ class PhysicsLoss(nn.Module):
         pred_real = self.de_normalize(pred_norm)
         target_real = self.de_normalize(target_norm)
         
+        # ==========================================================
+        # THE DYNAMIC BRICK WALL FIX
+        # ==========================================================
+        # Expand self.free_mask (N, 1) -> (1, N, 3) to broadcast over the batch
+        free_mask_expanded = self.free_mask.unsqueeze(0).expand(-1, -1, 3)
+        
+        # Automatically zeroes out predictions for whatever nodes are marked in PIN_MASK
+        pred_real_masked = pred_real * free_mask_expanded
+        target_real_masked = target_real * free_mask_expanded
+        # ==========================================================
+        
         # Derive prev_pos from displacement (curr_vel passed from train_loop is actually curr_pos - prev_pos)
         # Since curr_vel = (curr_pos - prev_pos)  -->  prev_pos = curr_pos - curr_vel
         prev_pos = curr_pos - curr_vel
 
         if cfg.TARGET_TYPE in ["accelerations", "acc_new"]:
             # Semi-Implicit Euler
-            pred_pos_next = curr_pos + curr_vel + (0.5 * pred_real * (self.dt ** 2))
-            target_pos_next = curr_pos + curr_vel + (0.5 * target_real * (self.dt ** 2))
+            pred_pos_next = curr_pos + curr_vel + (0.5 * pred_real_masked * (self.dt ** 2))
+            target_pos_next = curr_pos + curr_vel + (0.5 * target_real_masked * (self.dt ** 2))
             
         elif cfg.TARGET_TYPE == "acc":
             # Verlet Integration
-            pred_pos_next = (2 * curr_pos) - prev_pos + pred_real
-            target_pos_next = (2 * curr_pos) - prev_pos + target_real
+            pred_pos_next = (2 * curr_pos) - prev_pos + pred_real_masked
+            target_pos_next = (2 * curr_pos) - prev_pos + target_real_masked
             
         elif cfg.TARGET_TYPE == "displacements":
             # Direct Geometric Addition
-            pred_pos_next = curr_pos + pred_real
-            target_pos_next = curr_pos + target_real
+            pred_pos_next = curr_pos + pred_real_masked
+            target_pos_next = curr_pos + target_real_masked
             
         else:
             raise ValueError(f"Unknown TARGET_TYPE: {cfg.TARGET_TYPE}")
