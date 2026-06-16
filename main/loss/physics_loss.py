@@ -111,7 +111,7 @@ class PhysicsLoss(nn.Module):
         min_dist_target, _ = torch.min(dists, dim=1) 
         return torch.mean(min_dist_pred) + torch.mean(min_dist_target)
     
-def forward(self, pred_raw, target_raw, curr_pos, curr_vel):
+    def forward(self, pred_raw, target_raw, curr_pos, curr_vel):
         """
         Calculates the combined ML and Physics loss.
         pred_raw: Output from MeshGraphNet (Normalized Acceleration/Displacement)
