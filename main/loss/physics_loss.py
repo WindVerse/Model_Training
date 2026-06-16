@@ -114,8 +114,8 @@ class PhysicsLoss(nn.Module):
     def forward(self, pred_raw, target_raw, curr_pos, curr_vel):
         """
         Calculates the combined ML and Physics loss.
-        pred_raw: Output from MeshGraphNet (Normalized Acceleration)
-        target_raw: True target (Raw Physical Acceleration)
+        pred_raw: Output from MeshGraphNet (Normalized Acceleration/Displacement)
+        target_raw: True target (Raw Physical Space)
         curr_pos: Current position of nodes (Real Physical Space)
         curr_vel: Current velocity of nodes (Real Physical Space)
         """
@@ -127,29 +127,51 @@ class PhysicsLoss(nn.Module):
             
         pred_norm = pred_raw
 
-        # 2. Standard MSE Loss (Acceleration matching in normalized space)
+        # 2. Standard MSE Loss (Target matching in normalized space)
         mse_loss = F.mse_loss(pred_norm, target_norm)
         rmse_loss = torch.sqrt(mse_loss)
 
-        # 3. INTEGRATION to physical space
-        pred_accel_real = self.de_normalize(pred_norm)
-        pred_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * pred_accel_real * (self.dt ** 2))
+        # 3. INTEGRATION to physical space (MATCHING VALIDATION LOGIC)
+        pred_real = self.de_normalize(pred_norm)
+        target_real = self.de_normalize(target_norm)
         
-        target_accel_real = self.de_normalize(target_norm)
-        target_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * target_accel_real * (self.dt ** 2))
-        
+        # Derive prev_pos from true spatial velocity for the Verlet ("acc") scheme
+        # Since v = (curr_pos - prev_pos) / dt  -->  prev_pos = curr_pos - (v * dt)
+        prev_pos = curr_pos - (curr_vel * self.dt)
+
+        if cfg.TARGET_TYPE in ["accelerations", "acc_new"]:
+            # Semi-Implicit Euler
+            pred_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * pred_real * (self.dt ** 2))
+            target_pos_next = curr_pos + (curr_vel * self.dt) + (0.5 * target_real * (self.dt ** 2))
+            
+        elif cfg.TARGET_TYPE == "acc":
+            # Verlet Integration
+            pred_pos_next = (2 * curr_pos) - prev_pos + pred_real
+            target_pos_next = (2 * curr_pos) - prev_pos + target_real
+            
+        elif cfg.TARGET_TYPE == "displacements":
+            # Direct Geometric Addition
+            pred_pos_next = curr_pos + pred_real
+            target_pos_next = curr_pos + target_real
+            
+        else:
+            raise ValueError(f"Unknown TARGET_TYPE: {cfg.TARGET_TYPE}")
+
         # 4. Positional & Chamfer Loss (Node-to-Node matching)
         positional_loss = torch.sqrt(F.mse_loss(pred_pos_next, target_pos_next))
         chamfer_loss = self.compute_chamfer_loss(pred_pos_next, target_pos_next)
 
         # 5. EDGE LOSS (Stretch Constraint)
+        # Note: Updated to use Strain Percentage to prevent gradients from vanishing!
         p_src = pred_pos_next[:, self.src, :] # (B, E, 3)
         p_dst = pred_pos_next[:, self.dst, :] # (B, E, 3)
         curr_vec = p_src - p_dst
         curr_lengths = torch.norm(curr_vec, dim=2) # (B, E)
         
-        length_diff = curr_lengths - self.rest_lengths.unsqueeze(0) # Broadcast to batch
-        edge_loss = torch.mean(length_diff ** 2)
+        # Use percentage strain instead of raw meters for stable gradients
+        rest_lengths_expanded = self.rest_lengths.unsqueeze(0)
+        strain = torch.abs(curr_lengths - rest_lengths_expanded) / (rest_lengths_expanded + 1e-8)
+        edge_loss = torch.mean(strain ** 2)
 
         # 6. PIN LOSS (Anchor Constraint)
         current_pinned_pos = pred_pos_next[:, self.pinned_idx, :] # (B, N_Pin, 3)
@@ -161,7 +183,8 @@ class PhysicsLoss(nn.Module):
 
         # AREA LOSS (Shear Constraint)
         rest_areas_expanded = self.rest_areas.unsqueeze(0).expand_as(pred_areas)
-        area_loss = F.mse_loss(pred_areas, rest_areas_expanded)
+        area_strain = torch.abs(pred_areas - rest_areas_expanded) / (rest_areas_expanded + 1e-8)
+        area_loss = torch.mean(area_strain ** 2)
 
         # BENDING LOSS (Dihedral Angle Constraint)
         n1 = pred_normals[:, self.adj_faces[:, 0], :] # (B, Num_Adj_Pairs, 3)
