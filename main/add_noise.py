@@ -15,9 +15,9 @@ def apply_training_noise(flag_seq, target_seq, device):
     # ==========================================================
     # THE FIX: SPATIAL NOISE ATTENUATION RAMP
     # ==========================================================
-    # Create a ramp based on column index: Col 0 = 0.0, Col 1 = 0.33, Col 2 = 0.66, Col 3+ = 1.0
+    # Create a ramp based on column index: Col 0 = 0.0, Col 1 = 0.2, ..., Col 5+ = 1.0
     cols = torch.arange(cfg.WIDTH, device=device).unsqueeze(0).repeat(cfg.HEIGHT, 1).view(-1, 1)
-    ramp_mask = torch.clamp(cols.float() / 3.0, 0.0, 1.0) # Shape: [N, 1]
+    ramp_mask = torch.clamp(cols.float() / 5.0, 0.0, 1.0) # Shape: [N, 1]
     
     # Reshape to broadcast over [B, T, N, 3]
     ramp_mask = ramp_mask.view(1, 1, N, 1).expand(-1, -1, -1, 3)

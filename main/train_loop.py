@@ -49,13 +49,14 @@ def save_architecture_diagram(model, save_path, device):
             y = model(x_nodes, x_wind, edge_index)
 
         elif cfg.MODEL == 'SNN':
-            # SNN inputs: Flattened (Node + Wind)
-            B_dummy = 1
-            input_dim = cfg.NODE_DIM + cfg.WIND_DIM
-            x = torch.randn(B_dummy, input_dim).to(device)
+            # SNN inputs: Nodes, Wind
+            N_dummy = cfg.HEIGHT * cfg.WIDTH
+
+            x_nodes = torch.randn(N_dummy, cfg.NODE_DIM).to(device)
+            x_wind = torch.randn(N_dummy, cfg.WIND_DIM).to(device)
             
             # Trace
-            y = model(x)
+            y = model(x_nodes, x_wind)
 
         elif 'LSTM' in cfg.MODEL:
             # LSTM inputs: Sequence (Batch, Seq, Features)
@@ -130,7 +131,7 @@ def get_next_version_dir(base_dir):
 
 def export_onnx(model, save_path, device):
     """
-    Exports the MeshGraphNet model to ONNX format with dynamic axes.
+    Exports the model to ONNX format with dynamic axes based on model type.
     """
     model.eval()
     
@@ -138,40 +139,44 @@ def export_onnx(model, save_path, device):
     num_nodes = cfg.HEIGHT * cfg.WIDTH
     num_dummy_edges = 2300 
     
-    # 2. Node features: 3 (vel) + 3 (wind) + 1 (pin mask) = 7
-    dummy_node_features = torch.randn(num_nodes, 7, device=device)
+    # 2. Base Node Features
+    dummy_node_features = torch.randn(num_nodes, cfg.NODE_DIM, device=device)
     
-    # 3. EDGE INDEX FIX: Guarantee every node exists by adding self-loops (0 to num_nodes-1)
+    # 3. EDGE INDEX FIX: Guarantee every node exists by adding self-loops
     random_edges = torch.randint(0, num_nodes, (2, num_dummy_edges), dtype=torch.long, device=device)
     guaranteed_edges = torch.arange(0, num_nodes, dtype=torch.long, device=device).unsqueeze(0).repeat(2, 1)
     dummy_edge_index = torch.cat([guaranteed_edges, random_edges], dim=1)
     
-    # 4. Edge attributes (shape must match the total number of combined edges)
-    total_edges = dummy_edge_index.shape[1]
-    dummy_edge_attr = torch.randn(total_edges, 8, device=device)
+    # 4. Dynamic Inputs based on Architecture
+    if cfg.MODEL == "MeshGraphNet":
+        total_edges = dummy_edge_index.shape[1]
+        dummy_edge_attr = torch.randn(total_edges, cfg.EDGE_DIM, device=device)
+        export_inputs = (dummy_node_features, dummy_edge_index, dummy_edge_attr)
+        input_names = ["node_features", "edge_index", "edge_attr"]
+        dynamic_axes = {
+            "node_features": {0: "num_nodes"}, "edge_index": {1: "num_edges"}, 
+            "edge_attr": {0: "num_edges"}, "pred_accel": {0: "num_nodes"}
+        }
+    else:
+        dummy_wind = torch.randn(num_nodes, cfg.WIND_DIM, device=device)
+        export_inputs = (dummy_node_features, dummy_wind, dummy_edge_index)
+        input_names = ["node_features", "wind", "edge_index"]
+        dynamic_axes = {
+            "node_features": {0: "num_nodes"}, "wind": {0: "num_nodes"}, 
+            "edge_index": {1: "num_edges"}, "pred_accel": {0: "num_nodes"}
+        }
     
-    # 3. Define the Names and Dynamic Axes for the new inputs
-    input_names = ["node_features", "edge_index", "edge_attr"]
-    output_names = ["pred_accel"]
-    
-    dynamic_axes = {
-        "node_features": {0: "num_nodes"},
-        "edge_index": {1: "num_edges"},
-        "edge_attr": {0: "num_edges"},
-        "pred_accel": {0: "num_nodes"}
-    }
-    
-    # 4. Export
+    # 5. Export
     try:
         torch.onnx.export(
             model,
-            (dummy_node_features, dummy_edge_index, dummy_edge_attr),
+            export_inputs,
             save_path,
             export_params=True,
-            opset_version=16, # GNNs require higher opsets for scatter/gather
+            opset_version=16,
             do_constant_folding=True,
             input_names=input_names,
-            output_names=output_names,
+            output_names=["pred_accel"],
             dynamic_axes=dynamic_axes
         )
         print(f"ONNX Model exported successfully to: {save_path}")
@@ -490,10 +495,18 @@ def trainModel(train_set, test_set, device):
             export_onnx(model, onnx_path, device)
             print(f"ONNX Model Saved: {onnx_path}")
             
-            # 3. Save PT Architecture Diagram
-            scripted_model = torch.jit.script(model)
-            scripted_model.save(scripted_path)
-            print(f"Scripted Model Saved: {scripted_path}")
+            # 3. Save TorchScript Model using TRACE and real batch data
+            try:
+                if cfg.MODEL == 'MeshGraphNet':
+                    trace_inputs = (node_features_flat, edge_index_flat, edge_attr_flat)
+                else:
+                    trace_inputs = (x_nodes_flat, x_wind_flat, edge_index_flat)
+                    
+                scripted_model = torch.jit.trace(model, trace_inputs)
+                scripted_model.save(scripted_path)
+                print(f"Scripted Model Saved: {scripted_path}")
+            except Exception as e:
+                print(f"TorchScript Export Failed: {e}")
             
         
         # Validate after each epoch
