@@ -3,7 +3,7 @@ import os
 import torch
 
 # Test or Not
-IS_TEST = True
+IS_TEST = False
 VALIDATE = False
 
 if IS_TEST:
@@ -15,8 +15,8 @@ if IS_TEST:
     EPOCHS = 2
     WARMUP_EPOCHS = 0
 else:
-    EPOCHS = 20
-    WARMUP_EPOCHS = 0
+    EPOCHS = 25
+    WARMUP_EPOCHS = 5
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 2
 
@@ -47,7 +47,7 @@ USE_LAYER_NORM = True
 
 TARGET_TYPE = "acc"                    # displacements, accelerations, acc_new, acc
 EXIST_TOPOLOGY = True
-TRAIN_RATIO = 0.8
+TRAIN_RATIO = 0.9
 if IS_TEST:
     ITERATION_COUNT = 5
 else:
@@ -104,12 +104,12 @@ FLAG_STEP_SIZE = 1e-3 # α             # step size for a forward pass
 
 LAMBDA_RMSE = 1
 LAMBDA_POSITIONAL = 0
-LAMBDA_CHAMFER = 100
-LAMBDA_EDGE = 100
+LAMBDA_CHAMFER = 0
+LAMBDA_EDGE = 50
 LAMBDA_SMOOTH = 0.0    # Weight for Smoothness
-LAMBDA_AREA = 0.1
-LAMBDA_BEND = 0.1
-LAMBDA_PIN = 0.0       # Weight for Pinned Nodes (Pole)
+LAMBDA_AREA = 0
+LAMBDA_BEND = 0
+LAMBDA_PIN = 0       # Weight for Pinned Nodes (Pole)
 
 
 

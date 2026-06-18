@@ -94,35 +94,16 @@ class FlagLSTM_CNN_Net(nn.Module):
         self.decoder_cnn = nn.Sequential(*decoder_layers)
 
     def forward(self, x_nodes, x_wind, edge_index=None, hidden=None):
-        """
-        Forward pass with support for hidden states.
-        
-        Args:
-            x_nodes: (Total_Nodes, Node_Dim)
-            x_wind: (Total_Nodes, Wind_Dim)
-            edge_index: Not used in CNN/LSTM model (kept for API compatibility)
-            hidden: Tuple (h_n, c_n) for LSTM state maintenance during validation.
-            
-        Returns:
-            out_flat: (Total_Nodes, 3) - Predicted Acceleration
-            hidden: Tuple (h_n, c_n) - Updated LSTM state
-        """
         # --- HANDLE SEQUENCE INPUTS ---
         if x_nodes.dim() == 3:
-            # Flatten: (B, S, F) -> (B*S, F)
             x_nodes = x_nodes.reshape(-1, x_nodes.shape[-1])
             
         if x_wind.dim() == 3:
-            # Flatten: (B, S, F) -> (B*S, F)
             x_wind = x_wind.reshape(-1, x_wind.shape[-1])
-        # -------------------------------------------------------------------
 
         # 1. Handle Flattened Input
-        total_points, D = x_nodes.shape # Now safe: always 2D
+        total_points, D = x_nodes.shape 
         num_nodes = self.grid_h * self.grid_w
-        
-        if total_points < num_nodes:
-            raise ValueError(f"Total input points ({total_points}) must be >= num_nodes ({num_nodes}). Check your input shapes and SEQUENCE_LENGTH.")
         
         B_total = total_points // num_nodes 
 
@@ -141,32 +122,30 @@ class FlagLSTM_CNN_Net(nn.Module):
         wind_latent = self.wind_encoder(global_wind)
 
         # 3. LSTM Logic
-        combined = torch.cat([flag_latent, wind_latent], dim=1) # (Batch, Hidden_Size)
+        combined = torch.cat([flag_latent, wind_latent], dim=1) 
         
         # --- HIDDEN STATE LOGIC ---
         
-        # Case A: Validation / Inference (Single Frame)
-        # B_total is usually 1 (or small batch). We rely on 'hidden' passed from outside.
-        if B_total < self.seq_len:
+        # ONNX uses model.eval(), so it will cleanly export the seq_len=1 branch.
+        if not self.training:
+            # Case A: Validation / Inference (Single Frame)
             lstm_in = combined.unsqueeze(1) # (Batch, 1, Features)
             
-            # Use the passed hidden state (if any)
+            if hidden is None:
+                h0 = torch.zeros(self.num_lstm_layers, lstm_in.shape[0], self.lstm.hidden_size, device=x_nodes.device)
+                c0 = torch.zeros(self.num_lstm_layers, lstm_in.shape[0], self.lstm.hidden_size, device=x_nodes.device)
+                hidden = (h0, c0)
+
             lstm_out_seq, new_hidden = self.lstm(lstm_in, hidden)
-            
-            # Take the output
             lstm_out_flat = lstm_out_seq[:, -1, :]
             target_batch_size = B_total 
             
-        # Case B: Training (Full Sequences)
-        # We process chunks of 'seq_len'. We usually RESET hidden state here (hidden=None).
         else:
+            # Case B: Training (Full Sequences)
             true_batch_size = B_total // self.seq_len
             lstm_in = combined.reshape(true_batch_size, self.seq_len, -1)
             
-            # We ignore passed 'hidden' during training usually, or use it if stateful training is desired.
-            # Typically for training snippets, we start fresh.
             lstm_out, new_hidden = self.lstm(lstm_in) 
-            
             lstm_out_flat = lstm_out.contiguous().reshape(B_total, -1)
             target_batch_size = B_total
 

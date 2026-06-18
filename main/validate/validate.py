@@ -232,9 +232,13 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
                 
         else:
             # A. Prepare Input for GNN / LSTM
-            # Use the SCALED velocity here!
             curr_state = torch.cat([curr_pos, curr_vel_scaled], dim=1) 
-            norm_state = (curr_state - mean_flag) / (std_flag + 1e-8)
+            # Dynamically slice the stats to match the exact feature dimension of curr_state
+            feature_dim = curr_state.shape[-1]
+            mean_slice = mean_flag[..., :feature_dim]
+            std_slice = std_flag[..., :feature_dim]
+            
+            norm_state = (curr_state - mean_slice) / (std_slice + 1e-8)
             
             # Use the SCALED spatial wind here!
             wind_mean = wind_expanded_scaled.mean(dim=0)
