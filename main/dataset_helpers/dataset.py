@@ -62,11 +62,11 @@ class FlagWindDataset(Dataset):
         wind = torch.from_numpy(wind).float()
         target = torch.from_numpy(target).float()
 
-        # Normalize (using Pre-calculated Stats)
-        if self.stats and cfg.MODEL not in ["MeshGraphNet"]:  # MeshGraphNet will handle normalization internally
-            flag = (flag - self.stats['flag_mean']) / (self.stats['flag_std'] + 1e-8)
-            wind = (wind - self.stats['wind_mean']) / (self.stats['wind_std'] + 1e-8)
-            target = (target - self.stats['target_mean']) / (self.stats['target_std'] + 1e-8)
+        # # Normalize (using Pre-calculated Stats)
+        # if self.stats and cfg.MODEL not in ["MeshGraphNet"]:  # MeshGraphNet will handle normalization internally
+        #     flag = (flag - self.stats['flag_mean']) / (self.stats['flag_std'] + 1e-8)
+        #     wind = (wind - self.stats['wind_mean']) / (self.stats['wind_std'] + 1e-8)
+        #     target = (target - self.stats['target_mean']) / (self.stats['target_std'] + 1e-8)
 
         return flag, wind, target
 

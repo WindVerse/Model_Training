@@ -14,9 +14,11 @@ class FlagWindNet(nn.Module):
         # Flag MLP
         self.flag_mlp = nn.Sequential(
             nn.Linear(in_node_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
             helpers.get_activation(cfg.ACTIVATION),
             *[nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 helpers.get_activation(cfg.ACTIVATION)
               ) for _ in range(num_layers - 1)],
             nn.Linear(hidden_dim, hidden_dim)
@@ -25,9 +27,11 @@ class FlagWindNet(nn.Module):
         # Wind MLP
         self.wind_mlp = nn.Sequential(
             nn.Linear(in_wind_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
             helpers.get_activation(cfg.ACTIVATION),
             *[nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 helpers.get_activation(cfg.ACTIVATION)
               ) for _ in range(num_layers - 1)],
             nn.Linear(hidden_dim, hidden_dim)
@@ -36,9 +40,11 @@ class FlagWindNet(nn.Module):
         # Output MLP
         self.output_mlp = nn.Sequential(
             nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.LayerNorm(hidden_dim),
             helpers.get_activation(cfg.ACTIVATION),
             *[nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 helpers.get_activation(cfg.ACTIVATION)
               ) for _ in range(num_layers - 1)],
             nn.Linear(hidden_dim, 3)

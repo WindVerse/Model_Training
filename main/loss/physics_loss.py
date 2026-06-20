@@ -122,12 +122,13 @@ class PhysicsLoss(nn.Module):
         curr_pos: Current position of nodes (Real Physical Space)
         curr_vel: Current velocity of nodes (Real Physical Space)
         """
-        # 1. Normalize ONLY the target (MeshGraphNet natively outputs in normalized space)
-        if cfg.MODEL == 'MeshGraphNet':   
-            target_norm = (target_raw - self.mean) / (self.std + 1e-8)
-        else:
-            target_norm = target_raw
+        # # 1. Normalize ONLY the target (MeshGraphNet natively outputs in normalized space)
+        # if cfg.MODEL == 'MeshGraphNet':   
+        #     target_norm = (target_raw - self.mean) / (self.std + 1e-8)
+        # else:
+        #     target_norm = target_raw
             
+        target_norm = (target_raw - self.mean) / (self.std + 1e-8)
         pred_norm = pred_raw
 
         # 2. Standard MSE Loss (Target matching in normalized space)

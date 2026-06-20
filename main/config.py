@@ -3,7 +3,7 @@ import os
 import torch
 
 # Test or Not
-IS_TEST = False
+IS_TEST = True
 VALIDATE = False
 
 if IS_TEST:
@@ -71,7 +71,7 @@ BASE_DATASET_PATH = "../../datasets/"
 ########### Model Hyperparameters #######
 #########################################
 
-MODEL = "MeshGraphNet"                                    # 'GNN', 'SNN', 'LSTM_CNN', 'MeshGraphNet'
+MODEL = "SNN"                                    # 'GNN', 'SNN', 'LSTM_CNN', 'MeshGraphNet'
 LOSS = "physicsLoss"                                  # 'physicsLoss', 'L2Loss'
 
 # NODE_DIM = 3 * HISTORY_WINDOW                    # Pos(3) * History_Window

@@ -26,6 +26,7 @@ class FlagLSTM_CNN_Net(nn.Module):
         # Loop through config list: e.g., [16, 32, 64]
         for out_channels in cnn_channels:
             encoder_layers.append(nn.Conv2d(current_in_channels, out_channels, kernel_size=3, padding=1))
+            encoder_layers.append(nn.BatchNorm2d(out_channels))
             encoder_layers.append(nn.ReLU())
             encoder_layers.append(nn.MaxPool2d(2)) # Reduces size by half
             current_in_channels = out_channels # Update for next layer
@@ -44,15 +45,20 @@ class FlagLSTM_CNN_Net(nn.Module):
             self.latent_w = dummy_out.shape[3]
             self.last_channel_dim = dummy_out.shape[1] # e.g., 64
 
-        self.fc_encode = nn.Linear(self.flat_cnn_size, hidden_dim)
+        self.fc_encode = nn.Sequential(
+            nn.Linear(self.flat_cnn_size, hidden_dim),
+            nn.LayerNorm(hidden_dim)
+        )
 
         # =========================================================
         # 2. WIND ENCODER & LSTM
         # =========================================================
         self.wind_encoder = nn.Sequential(
             nn.Linear(in_wind_dim, hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
             nn.ReLU(),
-            nn.Linear(hidden_dim // 2, hidden_dim // 4)
+            nn.Linear(hidden_dim // 2, hidden_dim // 4),
+            nn.LayerNorm(hidden_dim // 4)
         )
 
         self.lstm_input_dim = hidden_dim + (hidden_dim // 4)
@@ -68,7 +74,10 @@ class FlagLSTM_CNN_Net(nn.Module):
         # 3. DYNAMIC CNN DECODER
         # =========================================================
         # Project hidden state back to the shape of the Encoder's last feature map
-        self.decoder_projection = nn.Linear(hidden_dim, self.last_channel_dim * self.latent_h * self.latent_w)
+        self.decoder_projection = nn.Sequential(
+            nn.Linear(hidden_dim, self.last_channel_dim * self.latent_h * self.latent_w),
+            nn.LayerNorm(self.last_channel_dim * self.latent_h * self.latent_w) # <-- Linear Normalization Added!
+        )
 
         decoder_layers = []
         
@@ -83,6 +92,7 @@ class FlagLSTM_CNN_Net(nn.Module):
             
             decoder_layers.append(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False))
             decoder_layers.append(nn.Conv2d(current_in_channels, next_out_channels, kernel_size=3, padding=1))
+            decoder_layers.append(nn.BatchNorm2d(next_out_channels))
             decoder_layers.append(nn.ReLU())
             
             current_in_channels = next_out_channels

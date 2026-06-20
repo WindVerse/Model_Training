@@ -233,27 +233,20 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         else:
             # A. Prepare Input for GNN / LSTM
             curr_state = torch.cat([curr_pos, curr_vel_scaled], dim=1) 
-            # Dynamically slice the stats to match the exact feature dimension of curr_state
-            feature_dim = curr_state.shape[-1]
-            mean_slice = mean_flag[..., :feature_dim]
-            std_slice = std_flag[..., :feature_dim]
-            
-            norm_state = (curr_state - mean_slice) / (std_slice + 1e-8)
-            
+                        
             # Use the SCALED spatial wind here!
             wind_mean = wind_expanded_scaled.mean(dim=0)
             wind_expanded_flat = wind_mean.unsqueeze(0).repeat(num_nodes, 1)
-            norm_wind = (wind_expanded_flat - mean_wind) / (std_wind + 1e-8)
             
             # B. Model Inference
             with torch.no_grad():
                 if 'LSTM' in cfg.MODEL:
-                    lstm_input_nodes = norm_state.unsqueeze(1)
-                    lstm_input_wind  = norm_wind.unsqueeze(1) 
+                    lstm_input_nodes = curr_state.unsqueeze(1)
+                    lstm_input_wind  = wind_expanded_flat.unsqueeze(1) 
                     pred_norm_acc, hidden_state = model(lstm_input_nodes, lstm_input_wind, hidden=hidden_state)
                     pred_norm_acc = pred_norm_acc.squeeze(1)
                 else:
-                    pred_norm_acc = model(norm_state, norm_wind, edge_index)
+                    pred_norm_acc = model(curr_state, wind_expanded_flat, edge_index)
         
         
         # --- C. DENORMALIZE THE PREDICTION ---
