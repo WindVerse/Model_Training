@@ -389,10 +389,13 @@ def trainModel(train_set, test_set, device):
             # ==========================================
             # 3. BUILD MODEL-SPECIFIC INPUTS
             # ==========================================
-            # We explicitly rebuild the inputs so ALL models use the scaled data
+            # Normalize the raw spatial coordinates for the Neural Networks
+            spatial_mean = train_set.stats['flag_mean'][0, 0, :3].to(device)
+            spatial_std = train_set.stats['flag_std'][0, 0, :3].to(device)
+            curr_pos_norm = (curr_pos_flat - spatial_mean) / (spatial_std + 1e-8)
             
             # For GNN / SNN / LSTM: (Pos + Scaled Vel) -> 6 Features
-            x_nodes_flat = torch.cat([curr_pos_flat, curr_vel_flat], dim=-1)
+            x_nodes_flat = torch.cat([curr_pos_norm, curr_vel_flat], dim=-1)
             
             # For MeshGraphNet: (Scaled Vel + Scaled Wind + Pin Mask) -> 7 Features
             node_features_flat = torch.cat([curr_vel_flat, x_wind_flat, batch_pin_mask], dim=-1)
