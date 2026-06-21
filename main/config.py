@@ -159,11 +159,16 @@ FACES_PATH = os.path.join(DATASET_DIR, "topology", "topology_faces.npy")
 # 1. Create Base Mask (N, 1)
 # 1.0 = Pinned, 0.0 = Free
 PIN_MASK = torch.zeros((HEIGHT*WIDTH, 1))
-# Pin Column 0 (Indices: 0, W, 2W...)
-# This matches the "Row-Major" flattening logic
-for r in range(HEIGHT):
-    idx = r * WIDTH
-    PIN_MASK[idx, 0] = 1.0
+if DATASET_VERSION == 6 or DATASET_VERSION == 0:
+
+    # Pin Column 0 (Indices: 0, W, 2W...)
+    # This matches the "Row-Major" flattening logic
+    for r in range(HEIGHT):
+        idx = r * WIDTH
+        PIN_MASK[idx, 0] = 1.0
+else:
+    for r in range(HEIGHT):
+        PIN_MASK[r, 0] = 1.0
 
 DELTA_T = 1.0 / FPS
 

@@ -1,3 +1,5 @@
+import importlib
+
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -130,7 +132,7 @@ def create_comparison_video(ground_truth, prediction, save_dir, run_index, winds
         ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=cfg.FPS)
         print(f"GIF saved to: {save_path.replace('.mp4', '.gif')}")
 
-def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
+def test_run(dataset, target, num_of_digits, run_index=0, model=None):
     """Runs inference ONCE, calculates metrics, and generates animation."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"\nStarting Historical Validation for Run {run_index+1} on {device}...")
@@ -145,7 +147,7 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     # 2. Load Model
     if model is None:
         model = load_model(device)
-        model_path = os.path.join(cfg.DATASET_DIR, "models", model_ver, "best_model.pth")
+        model_path = os.path.join(cfg.DATASET_DIR, "models", str(model_ver), "best_model.pth")
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found at {model_path}")
         model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
@@ -253,7 +255,7 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
         pred_real_acc = pred_norm_acc * std_acc + mean_acc
         
         # ==========================================
-        # ENFORCE BOUNDARY CONDITIONS
+        # ENFORCE BOUNDARY CONDITIONS (Fixed Masking)
         # ==========================================
         # Use the global PIN_MASK so it automatically handles Row-Major vs Sequential!
         batch_pin_mask = cfg.PIN_MASK.to(device) # Shape: [N, 1]
@@ -297,10 +299,9 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     avg_time_per_frame = T / (total_frames - 1)
     avg_rmse = np.mean(rmse_history)
     avg_edge_err = np.mean(edge_error_history)
-    
-    save_dir = os.path.join(cfg.DATASET_DIR, "models", model_ver)
-    if sub_dir:
-        save_dir = os.path.join(save_dir, sub_dir)
+        
+    save_dir = os.path.join(cfg.DATASET_DIR,"results")
+        
     os.makedirs(save_dir, exist_ok=True)
     
     print("Generating Plots and Animation...")
@@ -310,20 +311,121 @@ def validate_run(dataset, model_ver, run_index=0, sub_dir=None, model=None):
     return avg_rmse, avg_edge_err, avg_time_per_frame
 
 if __name__ == "__main__":
-    train, test = FlagWindDataset.load_and_split(train_ratio=cfg.TRAIN_RATIO)
+    custom_dataset_dir = "../../datasets/temp"  
+    target = "acc"
+    num_of_digits = 4
+    pin_mask_inversed = True
+
+    # ==========================================
+    # 1. DYNAMIC ARCHITECTURE HOT-SWAP (DO THIS FIRST!)
+    # ==========================================
+    # We must load the config_used BEFORE loading the dataset so that 
+    # HISTORY_WINDOW, NODE_DIM, VEL_UP, etc., perfectly match the model!
+    config_used_path = os.path.join(custom_dataset_dir, "config_used.py")
+    if os.path.exists(config_used_path):
+        print(f"Loading trained architecture config from: {config_used_path}")
+        spec = importlib.util.spec_from_file_location("config_used", config_used_path)
+        config_used = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_used)
+        
+        # Overwrite all uppercase constants EXCEPT paths
+        for key in dir(config_used):
+            if key.isupper() and not key.endswith("_DIR") and not key.endswith("_PATH") and key != "TARGET_TYPE":
+                setattr(cfg, key, getattr(config_used, key))
+    else:
+        print(f"WARNING: {config_used_path} not found! Using default config.py architecture.")
+
+    # ==========================================
+    # 2. OVERRIDE DIRECTORIES FOR CUSTOM TEST RUN
+    # ==========================================
+    cfg.IS_TEST = False  # FIX: Removed the trailing comma!
+    cfg.NO_DIGITS = num_of_digits
+    cfg.TARGET_TYPE = target
     
+    cfg.DATASET_DIR = custom_dataset_dir
+    cfg.FLAG_DIR = os.path.join(custom_dataset_dir, "flags")
+    cfg.WIND_DIR = os.path.join(custom_dataset_dir, "winds")
+    cfg.TARGET_DIR = os.path.join(custom_dataset_dir, "targets", cfg.TARGET_TYPE)
+    
+    cfg.TOPOLOGY_PATH = os.path.join(custom_dataset_dir, "topology", "topology_edge_index.npy")
+    cfg.FACES_PATH = os.path.join(custom_dataset_dir, "topology", "topology_faces.npy")
+    cfg.ITERATION_COUNT = 1 
+    
+    # ---------------------------------------------------------
+    # 🌟 THE FIX: DYNAMIC PIN MASK OVERRIDE FOR TEMP DATASET 🌟
+    # ---------------------------------------------------------
+    # The new temp dataset uses sequential pinning (0, 1, ..., H-1) 
+    # instead of the old Row-Major pinning (0, W, 2W...)
+    if pin_mask_inversed:
+        H, W = cfg.HEIGHT, cfg.WIDTH
+        new_pin_mask = torch.zeros((H * W, 1))
+        
+        for r in range(H):
+            new_pin_mask[r, 0] = 1.0  # Sequential indexing constraint
+            
+        cfg.PIN_MASK = new_pin_mask
+
+    # ==========================================
+    # 3. LOAD DATASET (Now using correct paths and config!)
+    # ==========================================
+    print(f"Loading dataset from: {custom_dataset_dir}")
+    test_dataset, _ = FlagWindDataset.load_and_split(train_ratio=1.0)
+    
+    # ==========================================
+    # 4. INJECT TRAINED NORMALIZATION STATS
+    # ==========================================
+    stats_path = os.path.join(custom_dataset_dir, "train_stats.npz")
+    if os.path.exists(stats_path):
+        print(f"Injecting trained normalization stats from: {stats_path}")
+        trained_stats = np.load(stats_path)
+        test_dataset.stats = {
+            'flag_mean': torch.from_numpy(trained_stats['flag_mean']),
+            'flag_std': torch.from_numpy(trained_stats['flag_std']),
+            'wind_mean': torch.from_numpy(trained_stats['wind_mean']),
+            'wind_std': torch.from_numpy(trained_stats['wind_std']),
+            'target_mean': torch.from_numpy(trained_stats['target_mean']),
+            'target_std': torch.from_numpy(trained_stats['target_std'])
+        }
+    else:
+        print(f"WARNING: {stats_path} not found! Physics integration will fail.")
+
+    # ==========================================
+    # 5. PRE-LOAD THE CUSTOM MODEL
+    # ==========================================
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model_path = os.path.join(custom_dataset_dir, "best_model.pth")
+    
+    print(f"Loading custom model weights from: {model_path}")
+    custom_model = load_model(device)
+    custom_model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+    custom_model.eval()
+
+    # ==========================================
+    # 6. RUN VALIDATION
+    # ==========================================
     total_rmse = 0
     total_edge_err = 0
-    runs_to_validate = 4
     total_time = 0
     
-    for run_idx in range(runs_to_validate):
-        rmse, edge_err, time_pf = validate_run(dataset=train, model_ver="185", run_index=run_idx, sub_dir="temp")
+    runs_to_test = len(test_dataset.data_flags)
+    print(f"\nEvaluating {runs_to_test} run(s)...")
+    
+    for run_idx in range(runs_to_test):
+        rmse, edge_err, time_pf = test_run(
+            dataset=test_dataset, 
+            target=target,
+            num_of_digits=num_of_digits,
+            run_index=run_idx, 
+            model=custom_model
+        )
         total_rmse += rmse
         total_edge_err += edge_err
         total_time += time_pf
     
-    print("\n=== Validation Complete ===")
-    print(f"Average RMSE over {runs_to_validate} runs: {total_rmse / runs_to_validate:.3f} m")
-    print(f"Average Edge Error over {runs_to_validate} runs: {total_edge_err / runs_to_validate * 100:.3f}%")
-    print(f"Average Time per Frame: {total_time / runs_to_validate:.3f} seconds")
+    if runs_to_test > 0:
+        print("\n=== Validation Complete ===")
+        print(f"Average RMSE over {runs_to_test} runs: {total_rmse / runs_to_test:.3f} m")
+        print(f"Average Edge Error over {runs_to_test} runs: {total_edge_err / runs_to_test * 100:.3f}%")
+        print(f"Average Time per Frame: {total_time / runs_to_test:.3f} seconds")
+    else:
+        print("\nNo runs were found to test. Check your dataset folder paths and naming conventions!")
