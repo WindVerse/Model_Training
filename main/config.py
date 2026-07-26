@@ -55,7 +55,7 @@ else:
 FPS = 10
 NO_DIGITS = 3
 if IS_TEST:
-    MAX_FRAMES = 30
+    MAX_FRAMES = 1000
 else:
     MAX_FRAMES = 300
 HEIGHT = 20

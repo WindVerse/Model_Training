@@ -132,6 +132,62 @@ def create_comparison_video(ground_truth, prediction, save_dir, run_index, winds
         ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=cfg.FPS)
         print(f"GIF saved to: {save_path.replace('.mp4', '.gif')}")
 
+def create_prediction_video(prediction, save_dir, run_index, winds=None):
+    """Creates a 3D animation for the GNN prediction only."""
+    fig = plt.figure(figsize=(7, 6))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # --- Mini Wind Visualization ---
+    wind_ax = fig.add_axes([0.65, 0.75, 0.25, 0.25], projection='3d')
+    wind_ax.axis('off') 
+    wind_ax.set_xlim(-1, 1); wind_ax.set_ylim(-1, 1); wind_ax.set_zlim(-1, 1)
+    
+    wind_mag_text = fig.text(0.78, 0.82, '', ha='center', va='top', fontsize=8, 
+                             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", edgecolor="gray", alpha=0.8))
+    
+    ax.set_title("GNN Prediction (Rollout)")
+    ax.set_xlim(-1, 1); ax.set_ylim(-1, 1); ax.set_zlim(-1, 1)
+    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+
+    scat = ax.scatter([], [], [], c='r', s=2)
+    txt = fig.suptitle('')
+    
+    wind_quivers = []
+
+    def update(frame):
+        pred_p = prediction[frame]
+        scat._offsets3d = (pred_p[:,0], pred_p[:,1], pred_p[:,2])
+        txt.set_text(f"Frame: {frame}/{len(prediction)}")
+        
+        if winds is not None:
+            nonlocal wind_quivers
+            if wind_quivers:
+                for quiv in wind_quivers:
+                    quiv.remove()
+            wind_quivers.clear()
+            
+            avg_w = np.mean(winds[frame], axis=0)
+            mag = np.linalg.norm(avg_w)
+            
+            dir_w = avg_w / mag if mag > 1e-8 else np.zeros(3)
+                
+            quiv = wind_ax.quiver(0, 0, 0, dir_w[0], dir_w[1], dir_w[2], 
+                                  length=1.0, color='magenta', linewidth=3, arrow_length_ratio=0.3)
+            wind_quivers.append(quiv)
+            wind_mag_text.set_text(f"Wind: {mag:.4f}")
+            
+        return scat, txt, wind_mag_text
+        
+    ani = animation.FuncAnimation(fig, update, frames=len(prediction), interval=1000*cfg.DELTA_T, blit=False)
+    
+    save_path = os.path.join(save_dir, f"prediction_run_{run_index+1}.mp4")
+    try:
+        ani.save(save_path, writer='ffmpeg', fps=cfg.FPS)
+        print(f"Video saved to: {save_path}")
+    except:
+        ani.save(save_path.replace(".mp4", ".gif"), writer='pillow', fps=cfg.FPS)
+        print(f"GIF saved to: {save_path.replace('.mp4', '.gif')}")
+
 def test_run(dataset, target, num_of_digits, run_index=0, model=None):
     """Runs inference ONCE, calculates metrics, and generates animation."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -306,18 +362,19 @@ def test_run(dataset, target, num_of_digits, run_index=0, model=None):
     
     print("Generating Plots and Animation...")
     plot_metrics(rmse_history, edge_error_history, avg_rmse, avg_edge_err, save_dir, run_index)
-    create_comparison_video(gt_flags[:, :, :3], np.array(predictions), save_dir, run_index, winds=gt_winds)
+    # create_comparison_video(gt_flags[:, :, :3], np.array(predictions), save_dir, run_index, winds=gt_winds)
+    create_prediction_video(np.array(predictions), os.path.join(cfg.DATASET_DIR, "results"), run_index, winds=gt_winds)
 
     return avg_rmse, avg_edge_err, avg_time_per_frame
 
 if __name__ == "__main__":
-    custom_dataset_dir = "../../datasets/temp"  
+    custom_dataset_dir = "../../datasets/test_set"  
     target = "acc"
     num_of_digits = 4
     pin_mask_inversed = True
 
     # ==========================================
-    # 1. DYNAMIC ARCHITECTURE HOT-SWAP (DO THIS FIRST!)
+    # 1. DYNAMIC ARCHITECTURE HOT-SWAP
     # ==========================================
     # We must load the config_used BEFORE loading the dataset so that 
     # HISTORY_WINDOW, NODE_DIM, VEL_UP, etc., perfectly match the model!
@@ -338,7 +395,7 @@ if __name__ == "__main__":
     # ==========================================
     # 2. OVERRIDE DIRECTORIES FOR CUSTOM TEST RUN
     # ==========================================
-    cfg.IS_TEST = False  # FIX: Removed the trailing comma!
+    cfg.IS_TEST = False
     cfg.NO_DIGITS = num_of_digits
     cfg.TARGET_TYPE = target
     
@@ -349,12 +406,13 @@ if __name__ == "__main__":
     
     cfg.TOPOLOGY_PATH = os.path.join(custom_dataset_dir, "topology", "topology_edge_index.npy")
     cfg.FACES_PATH = os.path.join(custom_dataset_dir, "topology", "topology_faces.npy")
-    cfg.ITERATION_COUNT = 1 
+    cfg.ITERATION_COUNT = 1
+    cfg.MAX_FRAMES = 1000
     
     # ---------------------------------------------------------
-    # 🌟 THE FIX: DYNAMIC PIN MASK OVERRIDE FOR TEMP DATASET 🌟
+    # 🌟 THE FIX: DYNAMIC PIN MASK OVERRIDE FOR TEST DATASET 🌟
     # ---------------------------------------------------------
-    # The new temp dataset uses sequential pinning (0, 1, ..., H-1) 
+    # The new test dataset uses sequential pinning (0, 1, ..., H-1) 
     # instead of the old Row-Major pinning (0, W, 2W...)
     if pin_mask_inversed:
         H, W = cfg.HEIGHT, cfg.WIDTH
